@@ -10,4 +10,7 @@ img_color = cv2.imread(img_file, 1)
 
 cv2.imshow("win test - gray", img_gray)
 cv2.imshow("win test - color", img_color)
+img_gray = img_gray .+ UInt8(100)
+
+cv2.imshow("win test - gray2", img_gray)
 cv2.waitKey(0)

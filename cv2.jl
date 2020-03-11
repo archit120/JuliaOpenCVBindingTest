@@ -1,37 +1,54 @@
-module jl_cpp_cv2
-  using CxxWrap
-  @wrapmodule(joinpath("lib","libcv2_jl"))
 
-  function __init__()
-    @initcxx
-  end
+module jl_cpp_cv2
+
+
+    using CxxWrap
+    @wrapmodule(joinpath("lib","libcv2_jl"))
+
+    function __init__()
+        @initcxx
+    end
+
 end
+
 
 module cv2
     import Main.jl_cpp_cv2
-    # function cpp_mat_to_jl_arr(mat)
-    #     return Array{UInt8, 2}(jl_cpp_cv2.make_julia_array(mat))
-    # end
+    const Image = Union{Array{UInt8, 3}, Array{UInt8, 2}}
 
-    # function jl_arr_to_cpp_mat(img::Array{UInt8, 2} arr)
-        
-    # end
+    function cpp_mat_to_jl_arr(mat)
+        arr = jl_cpp_cv2.cv_Mat_mutable_data(mat)
+        if size(arr, 3)==1
+            return Array{UInt8, 2}(reshape(arr, size(arr)[1:2]))
+        end
+    return Array{UInt8, 3}(arr)
+    end
+
+    function jl_arr_to_cpp_mat(img::Image)
+        if ndims(img)==2
+            return jl_cpp_cv2.cv_Mat_convert_fromjl_dim2(img, size(img)[2], size(img)[1])
+        else
+            return jl_cpp_cv2.cv_Mat_convert_fromjl_dim3(img, size(img)[2], size(img)[1], size(img)[3])
+            
+        end
+    end
 
     function waitKey(delay::Integer)
         jl_cpp_cv2.waitKey(delay)
     end
-    function imshow(winname::String, img)
+    function imshow(winname::String, img::Image)
         cv_String_winname = jl_cpp_cv2.cv_String(winname)
-        jl_cpp_cv2.imshow(cv_String_winname, img)
+        cv_Mat_img = cv2.jl_arr_to_cpp_mat(img)
+        jl_cpp_cv2.imshow(cv_String_winname, cv_Mat_img)
     end
     function imread(filename::String, flags::Integer)
         cv_String_filename = jl_cpp_cv2.cv_String(filename)
-        # tmp = jl_cpp_cv2.imread(cv_String_filename, flags)
-        return jl_cpp_cv2.imread(cv_String_filename, flags)
+        cv_Mat_tmp = jl_cpp_cv2.imread(cv_String_filename, flags)
+        jl_Image = cpp_mat_to_jl_arr(cv_Mat_tmp)
+        return jl_Image
     end
     function namedWindow(winname::String, flags::Integer)
         cv_String_winname = jl_cpp_cv2.cv_String(winname)
-        # tmp = jl_cpp_cv2.imread(cv_String_filename, flags)
         jl_cpp_cv2.namedWindow(cv_String_winname, flags)
     end
 end

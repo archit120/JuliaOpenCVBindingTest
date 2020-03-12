@@ -32,7 +32,7 @@ Mat imread_jl(const cv::String &filename, int flags = 1)
 
 jlcxx::ArrayRef<uint8_t, 3> cv_Mat_mutable_data(cv::Mat cv_Mat)
 {
-    return make_julia_array(cv_Mat.data, cv_Mat.rows, cv_Mat.cols, cv_Mat.channels());
+    return make_julia_array(cv_Mat.data, cv_Mat.channels(), cv_Mat.cols, cv_Mat.rows);
 }
 
 cv::Mat cv_Mat_convert_fromjl_dim2(jlcxx::ArrayRef<uchar, 2> data, int rows, int cols)

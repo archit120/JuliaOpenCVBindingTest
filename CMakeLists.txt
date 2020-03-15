@@ -15,6 +15,7 @@ add_library(cv2_jl SHARED cv2.cpp)
 
 FIND_PACKAGE( OpenCV REQUIRED )
 target_link_libraries(cv2_jl JlCxx::cxxwrap_julia)
+target_link_libraries(cv2_jl JlCxx::cxxwrap_julia_stl)
 INCLUDE_DIRECTORIES( ${OpenCV_INCLUDE_DIRS} )
 TARGET_LINK_LIBRARIES (cv2_jl ${OpenCV_LIBS})        
 

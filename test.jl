@@ -1,6 +1,6 @@
 include("cv2.jl")
 
-img_file = "/home/archit/Pictures/Screenshot from 2020-01-12 20-57-19.png"
+img_file = "blob.jpg"
 
 cv2.namedWindow("win test - gray", 0)
 cv2.namedWindow("win test - color", 0)
@@ -22,3 +22,7 @@ img = load(img_file)
 #TODO The colors are reversed
 cv2.imshow("test - juliaimages", rawview(channelview(img))[:,:,:])
 cv2.waitKey(0)
+
+detector = cv2.simpleBlobDetector_create()
+kps = cv2.simpleBlobDetector_solve(detector, img_gray)
+print(kps)

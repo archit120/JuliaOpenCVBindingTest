@@ -14,6 +14,16 @@ end
 
 module cv2
     import Main.jl_cpp_cv2
+
+    struct KeyPoint
+        pt::Tuple{Float32,Float32}
+        size::Float32
+        angle::Float32
+        response::Float32
+        octave::Integer
+        class_id::Integer
+    end
+
     const Image = Union{Array{UInt8, 3}, Array{UInt8, 2}}
 
     change_major_order(X::AbstractArray, size...=size(X)...) = permutedims(reshape(X, reverse([size...])...), length(size):-1:1)
@@ -41,6 +51,17 @@ module cv2
         end
     end
 
+    function cpp_Point2f_to_jl_tuple(pt)
+        return ((jl_cpp_cv2.cv_Point2f_get_x(pt), jl_cpp_cv2.cv_Point2f_get_y(pt)))
+    end
+
+    function cpp_KeyPoint_to_jl_KeyPoint(kp)
+        kpr = KeyPoint(cpp_Point2f_to_jl_tuple(jl_cpp_cv2.cv_KeyPoint_get_pt(kp)), jl_cpp_cv2.cv_KeyPoint_get_size(kp), 
+                        jl_cpp_cv2.cv_KeyPoint_get_angle(kp), jl_cpp_cv2.cv_KeyPoint_get_response(kp), 
+                        jl_cpp_cv2.cv_KeyPoint_get_octave(kp), jl_cpp_cv2.cv_KeyPoint_get_class_id(kp))
+        return kpr
+    end
+
     function waitKey(delay::Integer)
         jl_cpp_cv2.waitKey(delay)
     end
@@ -58,5 +79,16 @@ module cv2
     function namedWindow(winname::String, flags::Integer)
         cv_String_winname = jl_cpp_cv2.cv_String(winname)
         jl_cpp_cv2.namedWindow(cv_String_winname, flags)
+    end
+    function simpleBlobDetector_create()
+        return jl_cpp_cv2.cv_simpleBlobDetector_create()
+    end
+    function simpleBlobDetector_solve(algo, img::Image)
+        ret = jl_cpp_cv2.cv_simpleBlobDetector_solve(algo, jl_arr_to_cpp_mat(img))
+        arr = Array{cv2.KeyPoint, 1}()
+        for it in ret
+            push!(arr, cpp_KeyPoint_to_jl_KeyPoint(it))
+        end
+        return arr
     end
 end

@@ -43,11 +43,6 @@ void imshow_jl(const cv::String &winname, cv::Mat img)
     imshow(winname, img);
 }
 
-void waitKey_jl(int delay)
-{
-    waitKey(delay);
-}
-
 void namedWindow_jl(const cv::String &winname, int flags = 1)
 {
     namedWindow(winname, flags);
@@ -121,6 +116,11 @@ tuple<bool, Mat> cv_VideoCapture_read(VideoCapture cap)
     return make_tuple(cap.read(dst), dst);
 }
 
+bool cv_CascadeClassifier_empty(CascadeClassifier arg1)
+{
+    return arg1.empty();
+}
+
 JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
 {
     mod.add_type<Mat>("cv_Mat");
@@ -140,7 +140,7 @@ JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
     mod.add_type<Feature2D>("cv_Feature2D");
     mod.add_type<SimpleBlobDetector>("cv_SimpleBlobDetector", jlcxx::julia_base_type<Feature2D>());
 
-    mod.add_type<CascadeClassifier>("cv_CascadeClassifier").constructor<const cv::String &>().method("cv_CascadeClassifier_detectMultiScale_1", &cv_CascadeClassifier_detectMultiScale_1);
+    mod.add_type<CascadeClassifier>("cv_CascadeClassifier").constructor<const cv::String &>().method("cv_CascadeClassifier_detectMultiScale_1", &cv_CascadeClassifier_detectMultiScale_1).method("cv_CascadeClassifier_empty", &cv_CascadeClassifier_empty);
     mod.add_type<VideoCapture>("cv_VideoCapture").constructor<>().constructor<const cv::String &>().constructor<int>().method("cv_VideoCapture_read", &cv_VideoCapture_read);
 
     jlcxx::add_smart_pointer<cv::Ptr>(mod, "cv_Ptr");
@@ -149,10 +149,11 @@ JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
     mod.method("imshow", &imshow_jl);
     mod.method("namedWindow", &namedWindow_jl);
     // mod.method("findFile", &findFile_jl);
-    mod.method("waitKey", &waitKey_jl);
+    mod.method("waitKey", &waitKey);
     mod.method("rectangle", &rectangle_jl);
     mod.method("cvtColor", &cvtColor_jl);
     mod.method("equalizeHist", &equalizeHist_jl);
+    mod.method("destroyAllWindows", &destroyAllWindows);
 
     mod.method("cv_Mat_convert_fromjl_dim3", &cv_Mat_convert_fromjl_dim3);
     mod.method("cv_Mat_mutable_data", &cv_Mat_mutable_data);

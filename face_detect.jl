@@ -9,15 +9,16 @@ function detect(img::cv2.Image, cascade)
     return rects
 end
 
-function draw_rects(img, rects, color)
+function draw_rects(img, rects, color, offset=(0,0))
     for x in rects
-        print((x[1], x[2]), (x[3], x[4]))
-        cv2.rectangle(img, (x[1], x[2]), (x[3], x[4]), color, thickness = 2)
+        cv2.rectangle(img, (offset[1]+x[1], offset[2]+x[2]), (offset[1]+x[3], offset[2]+x[4]), color, thickness = 2)
     end
 end
 
 cap = cv2.VideoCapture(0)
-cascade = cv2.CascadeClassifier("/home/archit/Documents/GitHub/JuliaOpenCVBindingTest/haarcascade_frontalface_alt.xml")
+cascade = cv2.CascadeClassifier("haarcascade_frontalface_alt.xml")
+nested = cv2.CascadeClassifier("haarcascade_eye.xml")
+
 while true
     ret, img = cv2.VideoCapture_read(cap)
     if ret==false
@@ -28,11 +29,20 @@ while true
 
     rects = detect(gray, cascade)
     vis = deepcopy(img)
-    draw_rects(vis, rects, (255.0, 255.0, 0.0))
+    draw_rects(vis, rects, (0.0, 255.0, 0.0))
 
- 
+    if ~cv2.CascadeClassifier_empty(nested)
+        for x in rects
+            roi = view(gray, :, x[2]:x[4], x[1]:x[3])
+            subrects = detect(roi, nested)
+            draw_rects(vis, subrects, (255.0, 0.0, 0.0), (x[1], x[2]))
+        end
+    end
+
     cv2.imshow("facedetect", vis)
     if cv2.waitKey(5)==27
         break
     end
 end
+
+cv2.destroyAllWindows()

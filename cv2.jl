@@ -44,14 +44,20 @@ module cv2
     end
 
     function jl_arr_to_cpp_mat(img::Image)
-        if typeof(img) <: Base.ReinterpretArray
-            img = parent(img)
-        end
-        if  ~(typeof(img) <: PermutedDimsArray)
+        if typeof(img) <: SubArray
+            # print("WARNING: Image doesn't share memory - subView\n")
+            img = img.parent[img.indices...]
             img = permutedims(img, [1,3,2]) #DOESNT SHARE MEMORY!!!!
-            print("WARNING: Image doesn't share memory")
         else
-            img = parent(img)
+            if typeof(img) <: Base.ReinterpretArray
+                img = parent(img)
+            end
+            if  ~(typeof(img) <: PermutedDimsArray)
+                img = permutedims(img, [1,3,2]) #DOESNT SHARE MEMORY!!!!
+                # print("WARNING: Image doesn't share memory - permutedView\n")
+            else
+                img = parent(img)
+            end
         end
         return jl_cpp_cv2.cv_Mat_convert_fromjl_dim3(img, size(img)[2], size(img)[3], size(img)[1])    
     end
@@ -95,7 +101,7 @@ module cv2
     end
 
     function waitKey(delay::Integer)
-        jl_cpp_cv2.waitKey(delay)
+        return jl_cpp_cv2.waitKey(delay)
     end
     function imshow(winname::String, img::Image)
         cv_String_winname = jl_cpp_cv2.cv_String(winname)
@@ -168,6 +174,14 @@ module cv2
             push!(arr, cpp_Rect2i_to_jl_tuple(it))
         end
         return arr
+    end
+
+    function CascadeClassifier_empty(inp1)
+        return jl_cpp_cv2.cv_CascadeClassifier_empty(inp1)
+    end
+
+    function destroyAllWindows()
+        jl_cpp_cv2.destroyAllWindows()
     end
 
 

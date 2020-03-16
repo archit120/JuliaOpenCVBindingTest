@@ -12,7 +12,7 @@ Run as
 julia test.jl
 ```
 
-The test loads two images and then displays them
+The test loads two images and then displays them. Then runs simpleblobdetector and shows output
 
 The path for CMAKE_PREFIX_PATH can be obtained from Julia using:
 ```

@@ -123,7 +123,7 @@ bool cv_CascadeClassifier_empty(CascadeClassifier arg1)
 
 JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
 {
-    mod.add_type<Mat>("cv_Mat");
+    mod.add_type<Mat>("cv_Mat").constructor<int, const int*, int, void *, const size_t*>();
     mod.add_type<cv::String>("cv_String").constructor<const std::string &>();
     mod.add_type<Point2f>("cv_Point2f").constructor<float, float>().method("cv_Point2f_get_x", [](const Point2f &a) { return a.x; }).method("cv_Point2f_get_y", [](const Point2f &a) { return a.y; });
     

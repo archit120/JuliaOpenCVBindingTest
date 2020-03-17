@@ -1,7 +1,7 @@
 
+include("OpenCVImages.jl")
+
 module jl_cpp_cv2
-
-
     using CxxWrap
     @wrapmodule(joinpath("lib","libcv2_jl"))
 
@@ -14,7 +14,7 @@ end
 
 module cv2
     import Main.jl_cpp_cv2
-
+    import Main.OpenCVImages
     struct KeyPoint
         pt::Tuple{Float32,Float32}
         size::Float32
@@ -24,7 +24,7 @@ module cv2
         class_id::Integer
     end
 
-    const Image = Union{AbstractArray{UInt8, 3}, AbstractArray{UInt8, 2}}
+    const Image = Union{OpenCVImages.OpenCVImage, SubArray{UInt8, N, OpenCVImages.OpenCVImage, T} where {N, T}}
     const Scalar = Union{Tuple{Float64}, Tuple{Float64, Float64}, Tuple{Float64, Float64, Float64}, NTuple{4, Float64}}
     const Size = Tuple{Integer, Integer}
     const Rect = NTuple{4, Integer}
@@ -36,30 +36,15 @@ module cv2
 
     function cpp_mat_to_jl_arr(mat)
         arr = jl_cpp_cv2.cv_Mat_mutable_data(mat)
-        sz = size(arr)
-        arr = PermutedDimsArray(arr, [1,3,2])
-        arr = reinterpret(UInt8, arr)
-
-        return arr
+        return OpenCVImages.OpenCVImage(mat, arr)
     end
 
     function jl_arr_to_cpp_mat(img::Image)
-        if typeof(img) <: SubArray
-            # print("WARNING: Image doesn't share memory - subView\n")
-            img = img.parent[img.indices...]
-            img = permutedims(img, [1,3,2]) #DOESNT SHARE MEMORY!!!!
-        else
-            if typeof(img) <: Base.ReinterpretArray
-                img = parent(img)
-            end
-            if  ~(typeof(img) <: PermutedDimsArray)
-                img = permutedims(img, [1,3,2]) #DOESNT SHARE MEMORY!!!!
-                # print("WARNING: Image doesn't share memory - permutedView\n")
-            else
-                img = parent(img)
-            end
+        if img <: SubArray
+            return jl_cpp_cv2.cv_Mat()
         end
-        return jl_cpp_cv2.cv_Mat_convert_fromjl_dim3(img, size(img)[2], size(img)[3], size(img)[1])    
+
+        return img.mat
     end
 
     function jl_pt_to_cpp_pt(pt::Tuple{Real, Real})

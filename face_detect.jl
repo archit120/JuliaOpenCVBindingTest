@@ -28,18 +28,20 @@ while true
     gray = cv2.equalizeHist(gray)
 
     rects = detect(gray, cascade)
-    vis = deepcopy(img)
+    vis = copy(img)
     draw_rects(vis, rects, (0.0, 255.0, 0.0))
 
     if ~cv2.CascadeClassifier_empty(nested)
         for x in rects
-            roi = view(gray, :, x[2]:x[4], x[1]:x[3])
+            roi = view(gray, :, Int64(x[1]):Int64(x[3]), Int64(x[2]):Int64(x[4]))
             subrects = detect(roi, nested)
-            draw_rects(vis, subrects, (255.0, 0.0, 0.0), (x[1], x[2]))
+            draw_view = view(vis, :, Int64(x[1]):Int64(x[3]), Int64(x[2]):Int64(x[4]))
+            draw_rects(draw_view, subrects, (255.0, 0.0, 0.0))
         end
     end
 
     cv2.imshow("facedetect", vis)
+    cv2.imshow("orig", img)
     if cv2.waitKey(5)==27
         break
     end

@@ -15,6 +15,27 @@ end
 module cv2
     import Main.jl_cpp_cv2
     import Main.OpenCVImages
+
+
+    const CV_CN_MAX = 512
+    const CV_CN_SHIFT = 3
+    const CV_DEPTH_MAX = (1 << CV_CN_SHIFT)
+
+    const CV_8U = 0
+    const CV_8S = 1
+    const CV_16U = 2
+    const CV_16S = 3
+    const CV_32S = 4
+    const CV_32F = 5
+    const CV_64F = 6
+
+    const CV_MAT_DEPTH_MASK = (CV_DEPTH_MAX - 1)
+    CV_MAT_DEPTH(flags) = ((flags) & CV_MAT_DEPTH_MASK)
+
+    CV_MAKETYPE(depth,cn) = (CV_MAT_DEPTH(depth) + (((cn)-1) << CV_CN_SHIFT))
+    CV_MAKE_TYPE = CV_MAKETYPE
+ 
+
     struct KeyPoint
         pt::Tuple{Float32,Float32}
         size::Float32
@@ -24,10 +45,12 @@ module cv2
         class_id::Integer
     end
 
-    const Image = Union{OpenCVImages.OpenCVImage, SubArray{UInt8, N, OpenCVImages.OpenCVImage, T} where {N, T}}
+    const Image = Union{OpenCVImages.OpenCVImage{A} where {A}, SubArray{UInt8, N, OpenCVImages.OpenCVImage{A}, T} where {N, A, T}}
     const Scalar = Union{Tuple{Float64}, Tuple{Float64, Float64}, Tuple{Float64, Float64, Float64}, NTuple{4, Float64}}
     const Size = Tuple{Integer, Integer}
     const Rect = NTuple{4, Integer}
+
+    const size_t = UInt64 #TODO: Get size_t from CxxWrap maybe
 
     const CASCADE_SCALE_IMAGE = Integer(2)
     const COLOR_BGR2GRAY = Integer(6)
@@ -36,15 +59,30 @@ module cv2
 
     function cpp_mat_to_jl_arr(mat)
         arr = jl_cpp_cv2.cv_Mat_mutable_data(mat)
-        return OpenCVImages.OpenCVImage(mat, arr)
+        #TODO: Implement types
+        #Preserve Mat so that array allocated by C++ isn't deallocated
+        return OpenCVImages.OpenCVImage{UInt8}(mat, arr)
     end
 
     function jl_arr_to_cpp_mat(img::Image)
-        if img <: SubArray
-            return jl_cpp_cv2.cv_Mat()
-        end
+        # TODO: UserTypes do not work with StridedArray. Find something else.
+        steps = strides(img)
+        if steps[1] <= steps[2] <= steps[3] && steps[1]==1
+            steps_a = Array{size_t, 1}()
+            ndims_a = Array{Int32, 1}()
+            sz = sizeof(eltype(img))
+            push!(steps_a, UInt64(steps[3]*sz))
+            push!(steps_a, UInt64(steps[2]*sz))
+            push!(steps_a, UInt64(steps[1]*sz))
 
-        return img.mat
+            push!(ndims_a, Int32(size(img)[3]))
+            push!(ndims_a, Int32(size(img)[2]))
+
+            return jl_cpp_cv2.cv_Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_8U, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+        else
+            print("Bad steps")
+            print(steps)
+        end
     end
 
     function jl_pt_to_cpp_pt(pt::Tuple{Real, Real})

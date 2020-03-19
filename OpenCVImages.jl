@@ -3,26 +3,43 @@
 module OpenCVImages
 
 
-struct OpenCVImage <: AbstractArray{UInt8,3}
+struct OpenCVImage{T} <: AbstractArray{T,3}
     mat
     data_raw
     data
 
-    @inline function OpenCVImage(mat, data_raw)
-        data = PermutedDimsArray(data_raw, [1,3,2])
-        data = reinterpret(UInt8, data)
-        new(mat, data_raw, data)
+    @inline function OpenCVImage{T}(mat, data_raw) where {T}
+        data = reinterpret(T, data_raw)
+        new{T}(mat, data_raw, data)
     end
+
+    @inline function OpenCVImage{T}(data_raw) where {T}
+        data = reinterpret(T, data_raw)
+        mat = nothing
+        new{T}(mat, data_raw, data)
+    end
+end
+
+function Base.deepcopy_internal(x::OpenCVImage{T}, y::IdDict) where {T}
+    if haskey(y, x)
+        return y[x]
+    end
+    ret = Base.copy(x)
+    y[x] = ret
+    return ret
 end
 
 Base.size(A::OpenCVImage) = size(A.data)
 Base.axes(A::OpenCVImage) = axes(A.data)
-Base.IndexStyle(::Type{OpenCVImage}) = IndexStyle(DenseArray{UInt8, 3})
+Base.IndexStyle(::Type{OpenCVImage{T}}) where {T} = IndexCartesian()
 
-Base.copy(A::OpenCVImage) = OpenCVImage(A.mat, copy(A.data))
+Base.strides(A::OpenCVImage{T}) where {T} = strides(A.data)
+Base.copy(A::OpenCVImage{T}) where {T} = OpenCVImage{T}(copy(A.data_raw))
 Base.pointer(A::OpenCVImage) = Base.pointer(A.data)
 
-@inline function Base.getindex(A::OpenCVImage, I::Vararg{Int,3})
+Base.unsafe_convert(::Type{Ptr{T}}, A::OpenCVImage{S}) where {T, S} = Base.unsafe_convert(Ptr{T}, A.data)
+
+@inline function Base.getindex(A::OpenCVImage{T}, I::Vararg{Int,3}) where {T}
     @boundscheck checkbounds(A.data, I...)
     @inbounds ret = A.data[I...]
     ret

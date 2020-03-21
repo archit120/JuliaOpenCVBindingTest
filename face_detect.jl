@@ -24,6 +24,8 @@ while true
     if ret==false
         break
     end
+    cv2.imshow("facedetect", img)
+
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
 

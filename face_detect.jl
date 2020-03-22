@@ -31,7 +31,7 @@ while true
     vis = copy(img)
     draw_rects(vis, rects, (0.0, 255.0, 0.0))
 
-    if ~cv2.CascadeClassifier_empty(nested)
+    if ~cv2.empty(nested)
         for x in rects
             roi = view(gray, :, Int64(x[1]):Int64(x[3]), Int64(x[2]):Int64(x[4]))
             subrects = detect(roi, nested)

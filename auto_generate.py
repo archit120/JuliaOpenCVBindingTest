@@ -13,6 +13,7 @@ for hname in opencv_hdr_list:
     decls += parser.parse(hname)
 
 modlist = []
+classlist = []
 
 def print_arg_function(arg):
     print("\tTYPE:",arg[0], " NAME: ", normalize_class_name(arg[1]), " DEFAULT VALUE: ", arg[2], " MODS: ", arg[3])
@@ -34,6 +35,10 @@ for decl in decls:
         for var in decl[3]:
             print_arg_enum(var)
     elif len(c1)==1:
+        parts = c1[0].split('.')
+        if 'Algo' in c1[0]:
+            print(decl)
+            input()
         print("TYPE: function NAME: ", normalize_class_name(c1[0]), "RETURN TYPE: ", decl[1], "modlist = ",decl[2])
         modlist.extend(decl[2])
         for var in decl[3]:
@@ -45,6 +50,7 @@ for decl in decls:
             # assert(0)
     elif len(c1)!=1 and c1[0].startswith("class"):
         print("TYPE: ", c1[0], " NAME: ", normalize_class_name(c1[1]), "modlist = ", decl[2])
+        classlist.append(normalize_class_name(c1[1]))
         modlist.extend(decl[2])
         if decl[1]!='':
             assert(0)

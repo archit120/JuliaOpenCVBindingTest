@@ -1,6 +1,6 @@
 include("cv2.jl")
 
-img_file = "blob.jpg"
+img_file = "test_image.png"
 
 cv2.namedWindow("win test - gray", 0)
 cv2.namedWindow("win test - color", 0)
@@ -10,10 +10,13 @@ img_color = cv2.imread(img_file, 1)
 
 cv2.imshow("win test - gray", img_gray)
 cv2.imshow("win test - color", img_color)
-# img_gray = img_gray .+ UInt8(100)
 
-# cv2.imshow("win test - gray2", img_gray)
-cv2.waitKey(1000)
+cv2.waitKey(0)
+
+view_img = view(img_color, 2, 100:200, 100:150)
+view_img .= 0
+
+cv2.imshow("test 2", img_color)
 
 # using Images, FileIO
 
@@ -24,5 +27,5 @@ cv2.waitKey(1000)
 cv2.waitKey(0)
 
 detector = cv2.simpleBlobDetector_create()
-kps = cv2.simpleBlobDetector_solve(detector, img_gray)
+kps = cv2.simpleBlobDetector_detect(detector, img_gray)
 print(kps)

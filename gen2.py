@@ -19,66 +19,26 @@ ignored_arg_types = ["RNG*"]
 pass_by_val_types = ["Point*", "Point2f*", "Rect*", "String*", "double*", "float*", "int*"]
 
 gen_template_check_self = Template("""
-    ${cname} * self1 = 0;
-    if (!jlopencv_${name}_getp(self, self1))
-        return failmsgp("Incorrect type of self (must be '${name}' or its derivative)");
-    ${pname} _self_ = ${cvt}(self1);
 """)
-gen_template_call_constructor_prelude = Template("""new (&(self->v)) Ptr<$cname>(); // init Ptr with placement new
-        if(self) """)
+gen_template_call_constructor_prelude = Template(""" """)
 
-gen_template_call_constructor = Template("""self->v.reset(new ${cname}${args})""")
+gen_template_call_constructor = Template(""" """)
 
-gen_template_simple_call_constructor_prelude = Template("""if(self) """)
+gen_template_simple_call_constructor_prelude = Template(""" """)
 
-gen_template_simple_call_constructor = Template("""new (&(self->v)) ${cname}${args}""")
+gen_template_simple_call_constructor = Template(""" """)
 
-gen_template_parse_args = Template("""const char* keywords[] = { $kw_list, NULL };
-    if( jlArg_ParseTupleAndKeywords(args, kw, "$fmtspec", (char**)keywords, $parse_arglist)$code_cvt )""")
+gen_template_parse_args = Template(""" """)
 
 gen_template_func_body = Template("""$code_decl
-    $code_parse
-    {
-        ${code_prelude}ERRWRAP2($code_fcall);
-        $code_ret;
-    }
 """)
 
 gen_template_mappable = Template("""
-    {
-        ${mappable} _src;
-        if (jlopencv_to(src, _src, info))
-        {
-            return cv_mappable_to(_src, dst);
-        }
-    }
 """)
 
 gen_template_type_decl = Template("""
 // Converter (${name})
 
-template<>
-struct jlOpenCV_Converter< ${cname} >
-{
-    static jlObject* from(const ${cname}& r)
-    {
-        return jlopencv_${name}_Instance(r);
-    }
-    static bool to(jlObject* src, ${cname}& dst, const ArgInfo& info)
-    {
-        if(!src || src == jl_None)
-            return true;
-        ${cname} * dst_;
-        if (jlopencv_${name}_getp(src, dst_))
-        {
-            dst = *dst_;
-            return true;
-        }
-        ${mappable_code}
-        failmsg("Expected ${cname} for argument '%s'", info.name);
-        return false;
-    }
-};
 
 """)
 
@@ -91,13 +51,8 @@ template <> struct IsMirroredType<$cname> : std::true_type {
     Template to add code for mapping fields in CV_EXPORTS_W_MAP classes
 """
 gen_template_set_prop_from_map = Template("""
-    if( jlMapping_HasKeyString(src, (char*)"$propname") )
-    {
-        tmp = jlMapping_GetItemString(src, (char*)"$propname");
-        ok = tmp && jlopencv_to(tmp, dst.$propname, ArgInfo("$propname", false));
-        jl_DECREF(tmp);
-        if(!ok) return false;
-    }""")
+
+    """)
 
 """
     Template wrapping all classes
@@ -113,73 +68,36 @@ ${methods_code}
 
 // Tables (${name})
 
-static jlGetSetDef jlopencv_${name}_getseters[] =
-{${getset_inits}
-    {NULL}  /* Sentinel */
-};
-
-static jlMethodDef jlopencv_${name}_methods[] =
-{
-${methods_inits}
-    {NULL,          NULL}
-};
 """)
 
 
 gen_template_get_prop = Template("""
-static jlObject* jlopencv_${name}_get_${member}(jlopencv_${name}_t* p, void *closure)
+${rtype} jlopencv_${name}_get_${member}(${name} p)
 {
-    return jlopencv_from(p->v${access}${member});
+    return p${access}${member};
 }
 """)
 
 
 gen_template_get_prop_algo = Template("""
-static jlObject* jlopencv_${name}_get_${member}(jlopencv_${name}_t* p, void *closure)
-{
-    $cname* _self_ = dynamic_cast<$cname*>(p->v.get());
-    if (!_self_)
-        return failmsgp("Incorrect type of object (must be '${name}' or its derivative)");
-    return jlopencv_from(_self_${access}${member});
-}
 """)
 
 gen_template_set_prop = Template("""
-static int jlopencv_${name}_set_${member}(jlopencv_${name}_t* p, jlObject *value, void *closure)
+void jlopencv_${name}_set_${member}(${name} p, ${ctype} v)
 {
-    if (!value)
-    {
-        jlErr_SetString(jlExc_TypeError, "Cannot delete the ${member} attribute");
-        return -1;
-    }
-    return jlopencv_to(value, p->v${access}${member}, ArgInfo("value", false)) ? 0 : -1;
+    p${access}${member} = v;
 }
 """)
 
 gen_template_set_prop_algo = Template("""
-static int jlopencv_${name}_set_${member}(jlopencv_${name}_t* p, jlObject *value, void *closure)
-{
-    if (!value)
-    {
-        jlErr_SetString(jlExc_TypeError, "Cannot delete the ${member} attribute");
-        return -1;
-    }
-    $cname* _self_ = dynamic_cast<$cname*>(p->v.get());
-    if (!_self_)
-    {
-        failmsgp("Incorrect type of object (must be '${name}' or its derivative)");
-        return -1;
-    }
-    return jlopencv_to(value, _self_${access}${member}, ArgInfo("value", false)) ? 0 : -1;
-}
 """)
 
 
 gen_template_prop_init = Template("""
-    {(char*)"${member}", (getter)jlopencv_${name}_get_${member}, NULL, (char*)"${member}", NULL},""")
+    """)
 
 gen_template_rw_prop_init = Template("""
-    {(char*)"${member}", (getter)jlopencv_${name}_get_${member}, (setter)jlopencv_${name}_set_${member}, (char*)"${member}", NULL},""")
+""")
 
 class FormatStrings:
     string = 's'
@@ -222,10 +140,6 @@ def get_type_format_string(arg_type_info):
     else:
         return arg_type_info.format_str
 
-def convert_arg_type(arg_type):
-    types = arg_type.split('_')
-    if len(types)==1:
-        return arg_type
 
 class ClassProp(object):
     """
@@ -233,6 +147,7 @@ class ClassProp(object):
     """
     def __init__(self, decl):
         self.tp = decl[0].replace("*", "_ptr")
+        self.ctp = decl[0]
         self.name = decl[1]
         self.readonly = True
         if "/RW" in decl[3]:
@@ -322,7 +237,7 @@ class ClassInfo(object):
             if self.isalgorithm:
                 getset_code.write(gen_template_get_prop_algo.substitute(name=self.name, cname=self.cname, member=pname, membertype=p.tp, access=access_op))
             else:
-                getset_code.write(gen_template_get_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op))
+                getset_code.write(gen_template_get_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op, rtype = p.ctp))
 
 
             #create setter and init functions
@@ -332,7 +247,7 @@ class ClassInfo(object):
                 if self.isalgorithm:
                     getset_code.write(gen_template_set_prop_algo.substitute(name=self.name, cname=self.cname, member=pname, membertype=p.tp, access=access_op))
                 else:
-                    getset_code.write(gen_template_set_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op))
+                    getset_code.write(gen_template_set_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op, ctype = p.ctp))
                 getset_inits.write(gen_template_rw_prop_init.substitute(name=self.name, member=pname))
 
         methods_code = StringIO()
@@ -382,6 +297,8 @@ def handle_ptr(tp):
         tp = 'Ptr<' + "::".join(tp.split('_')[1:]) + '>'
     return tp
 
+def handle_julia_type(tp):
+    return tp
 
 class ArgInfo(object):
     """
@@ -390,6 +307,7 @@ class ArgInfo(object):
 
     def __init__(self, arg_tuple):
         self.tp = handle_ptr(arg_tuple[0])
+        self.jtp = handle_julia_type(self.tp)
         self.name = arg_tuple[1]
         self.defval = arg_tuple[2]
         self.isarray = False
@@ -487,14 +405,14 @@ class FuncVariant(object):
             if a.tp in ignored_arg_types:
                 continue
             if a.returnarg:
-                outlist.append((a.name, argno))
+                outlist.append((a.name, argno, a.jtp))
             if (not a.inputarg) and a.isbig():
-                outarr_list.append((a.name, argno))
+                outarr_list.append((a.name, argno, a.jtp))
                 continue
             if not a.inputarg:
                 continue
             if not a.defval:
-                arglist.append((a.name, argno))
+                arglist.append((a.name, argno, a.jtp))
             else:
                 firstoptarg = min(firstoptarg, len(arglist))
                 # if there are some array output parameters before the first default parameter, they
@@ -502,7 +420,7 @@ class FuncVariant(object):
                 if outarr_list:
                     arglist += outarr_list
                     outarr_list = []
-                arglist.append((a.name, argno))
+                arglist.append((a.name, argno, a.jtp))
 
         if outarr_list:
             firstoptarg = min(firstoptarg, len(arglist))
@@ -510,15 +428,15 @@ class FuncVariant(object):
         firstoptarg = min(firstoptarg, len(arglist))
 
         noptargs = len(arglist) - firstoptarg
-        argnamelist = [aname for aname, argno in arglist]
+        argnamelist = [aname+"::"+jtp for aname, argno, jtp in arglist]
         argstr = ", ".join(argnamelist[:firstoptarg])
         if noptargs != 0:
             argstr = argstr + "; " +", ".join(argnamelist[firstoptarg:])
         if self.rettype:
-            outlist = [("retval", -1)] + outlist
+            outlist = [("retval", -1, "")] + outlist
         elif self.isconstructor:
             assert outlist == []
-            outlist = [("self", -1)]
+            outlist = [("self", -1, "")]
         if self.isconstructor:
             classname = self.classname
             if classname.startswith("Cv"):
@@ -534,12 +452,13 @@ class FuncVariant(object):
         self.jl_prototype = "%s(%s) -> %s" % (self.wname, argstr, outstr)
         self.jl_noptargs = noptargs
         self.jl_arglist = arglist
-        for aname, argno in arglist:
+        for aname, argno, jtp in arglist:
             self.args[argno].jl_inputarg = True
-        for aname, argno in outlist:
+        for aname, argno, jtp in outlist:
             if argno >= 0:
                 self.args[argno].jl_outputarg = True
         self.jl_outlist = outlist
+
 
 
 class FuncInfo(object):
@@ -700,6 +619,7 @@ class FuncInfo(object):
                     if tp.endswith("*"):
                         defval0 = "0"
                         tp1 = tp.replace("*", "_ptr")
+                    print(self.name)
                 tp_candidates = [a.tp, normalize_class_name(self.namespace + "." + a.tp)]
                 if any(tp in codegen.enums.keys() for tp in tp_candidates):
                     defval0 = "static_cast<%s>(%d)" % (a.tp, 0)
@@ -785,7 +705,7 @@ class FuncInfo(object):
                 # form the format spec for jlArg_ParseTupleAndKeywords
                 fmtspec = "".join([
                     get_type_format_string(all_cargs[argno][0])
-                    for aname, argno in v.jl_arglist
+                    for aname, argno, jtp in v.jl_arglist
                 ])
                 if v.jl_noptargs > 0:
                     fmtspec = fmtspec[:-v.jl_noptargs] + "|" + fmtspec[-v.jl_noptargs:]
@@ -796,9 +716,9 @@ class FuncInfo(object):
                 #   - calls jlArg_ParseTupleAndKeywords
                 #   - converts complex arguments from jlObject's to native OpenCV types
                 code_parse = gen_template_parse_args.substitute(
-                    kw_list = ", ".join(['"' + aname + '"' for aname, argno in v.jl_arglist]),
+                    kw_list = ", ".join(['"' + aname + '"' for aname, argno, jtp in v.jl_arglist]),
                     fmtspec = fmtspec,
-                    parse_arglist = ", ".join(["&" + all_cargs[argno][1] for aname, argno in v.jl_arglist]),
+                    parse_arglist = ", ".join(["&" + all_cargs[argno][1] for aname, argno, jtp in v.jl_arglist]),
                     code_cvt = " &&\n        ".join(code_cvt_list))
             else:
                 code_parse = "if(jlObject_Size(args) == 0 && (!kw || jlObject_Size(kw) == 0))"
@@ -809,13 +729,13 @@ class FuncInfo(object):
                 if self.isconstructor:
                     code_ret = "return 0"
                 else:
-                    aname, argno = v.jl_outlist[0]
+                    aname, argno, jtp = v.jl_outlist[0]
                     code_ret = "return jlopencv_from(%s)" % (aname,)
             else:
                 # there is more than 1 return parameter; form the tuple out of them
                 fmtspec = "N"*len(v.jl_outlist)
                 code_ret = "return jl_BuildValue(\"(%s)\", %s)" % \
-                    (fmtspec, ", ".join(["jlopencv_from(" + aname + ")" for aname, argno in v.jl_outlist]))
+                    (fmtspec, ", ".join(["jlopencv_from(" + aname + ")" for aname, argno, jtp in v.jl_outlist]))
 
             all_code_variants.append(gen_template_func_body.substitute(code_decl=code_decl,
                 code_parse=code_parse, code_prelude=code_prelude, code_fcall=code_fcall, code_ret=code_ret))
@@ -1016,14 +936,6 @@ class jlthonWrapperGenerator(object):
         """
         ns = self.namespaces[ns_name]
         wname = normalize_class_name(ns_name)
-
-        self.code_ns_reg.write('static jlMethodDef methods_%s[] = {\n'%wname)
-        for name, func in sorted(ns.funcs.items()):
-            if func.isconstructor:
-                continue
-            self.code_ns_reg.write(func.get_tab_entry())
-        self.code_ns_reg.write('    {NULL, NULL}\n};\n\n')
-
         self.code_ns_reg.write('JLCXX_MODULE %s(jlcxx::Module &mod) {\n'%wname)
 
         for name, cname in sorted(ns.consts.items()):
@@ -1033,9 +945,10 @@ class jlthonWrapperGenerator(object):
                 self.code_ns_reg.write('    mod.set_const("%s", %s);\n'%(compat_name, cname))
 
         for name, func in sorted(ns.funcs.items()):
-                if func.isconstructor:
-                    continue
-                self.code_ns_reg.write('    mod.method("%s_", %s);\n'%(compat_name, cname))
+            if func.isconstructor:
+                continue
+                print()
+            self.code_ns_reg.write('    mod.method("%s", %s);\n'%(func.get_wrapper_name(), name))
 
         
         self.code_ns_reg.write('    }\n\n')

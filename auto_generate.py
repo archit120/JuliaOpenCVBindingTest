@@ -36,7 +36,7 @@ for decl in decls:
             print_arg_enum(var)
     elif len(c1)==1:
         parts = c1[0].split('.')
-        if 'Algo' in c1[0]:
+        if 'mix' in c1[0]:
             print(decl)
             input()
         print("TYPE: function NAME: ", normalize_class_name(c1[0]), "RETURN TYPE: ", decl[1], "modlist = ",decl[2])

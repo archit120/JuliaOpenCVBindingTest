@@ -19,26 +19,66 @@ ignored_arg_types = ["RNG*"]
 pass_by_val_types = ["Point*", "Point2f*", "Rect*", "String*", "double*", "float*", "int*"]
 
 gen_template_check_self = Template("""
+    ${cname} * self1 = 0;
+    if (!jlopencv_${name}_getp(self, self1))
+        return failmsgp("Incorrect type of self (must be '${name}' or its derivative)");
+    ${pname} _self_ = ${cvt}(self1);
 """)
-gen_template_call_constructor_prelude = Template(""" """)
+gen_template_call_constructor_prelude = Template("""new (&(self->v)) Ptr<$cname>(); // init Ptr with placement new
+        if(self) """)
 
-gen_template_call_constructor = Template(""" """)
+gen_template_call_constructor = Template("""self->v.reset(new ${cname}${args})""")
 
-gen_template_simple_call_constructor_prelude = Template(""" """)
+gen_template_simple_call_constructor_prelude = Template("""if(self) """)
 
-gen_template_simple_call_constructor = Template(""" """)
+gen_template_simple_call_constructor = Template("""new (&(self->v)) ${cname}${args}""")
 
-gen_template_parse_args = Template(""" """)
+gen_template_parse_args = Template("""const char* keywords[] = { $kw_list, NULL };
+    if( jlArg_ParseTupleAndKeywords(args, kw, "$fmtspec", (char**)keywords, $parse_arglist)$code_cvt )""")
 
 gen_template_func_body = Template("""$code_decl
+    $code_parse
+    {
+        ${code_prelude}ERRWRAP2($code_fcall);
+        $code_ret;
+    }
 """)
 
 gen_template_mappable = Template("""
+    {
+        ${mappable} _src;
+        if (jlopencv_to(src, _src, info))
+        {
+            return cv_mappable_to(_src, dst);
+        }
+    }
 """)
 
 gen_template_type_decl = Template("""
 // Converter (${name})
 
+template<>
+struct jlOpenCV_Converter< ${cname} >
+{
+    static jlObject* from(const ${cname}& r)
+    {
+        return jlopencv_${name}_Instance(r);
+    }
+    static bool to(jlObject* src, ${cname}& dst, const ArgInfo& info)
+    {
+        if(!src || src == jl_None)
+            return true;
+        ${cname} * dst_;
+        if (jlopencv_${name}_getp(src, dst_))
+        {
+            dst = *dst_;
+            return true;
+        }
+        ${mappable_code}
+        failmsg("Expected ${cname} for argument '%s'", info.name);
+        return false;
+    }
+};
 
 """)
 
@@ -51,8 +91,13 @@ template <> struct IsMirroredType<$cname> : std::true_type {
     Template to add code for mapping fields in CV_EXPORTS_W_MAP classes
 """
 gen_template_set_prop_from_map = Template("""
-
-    """)
+    if( jlMapping_HasKeyString(src, (char*)"$propname") )
+    {
+        tmp = jlMapping_GetItemString(src, (char*)"$propname");
+        ok = tmp && jlopencv_to(tmp, dst.$propname, ArgInfo("$propname", false));
+        jl_DECREF(tmp);
+        if(!ok) return false;
+    }""")
 
 """
     Template wrapping all classes
@@ -68,13 +113,23 @@ ${methods_code}
 
 // Tables (${name})
 
+static jlGetSetDef jlopencv_${name}_getseters[] =
+{${getset_inits}
+    {NULL}  /* Sentinel */
+};
+
+static jlMethodDef jlopencv_${name}_methods[] =
+{
+${methods_inits}
+    {NULL,          NULL}
+};
 """)
 
 
 gen_template_get_prop = Template("""
 ${rtype} jlopencv_${name}_get_${member}(${name} p)
 {
-    return p${access}${member};
+    return jlopencv_from(p${access}${member});
 }
 """)
 
@@ -83,21 +138,41 @@ gen_template_get_prop_algo = Template("""
 """)
 
 gen_template_set_prop = Template("""
-void jlopencv_${name}_set_${member}(${name} p, ${ctype} v)
+static int jlopencv_${name}_set_${member}(jlopencv_${name}_t* p, jlObject *value, void *closure)
 {
-    p${access}${member} = v;
+    if (!value)
+    {
+        jlErr_SetString(jlExc_TypeError, "Cannot delete the ${member} attribute");
+        return -1;
+    }
+    return jlopencv_to(value, p->v${access}${member}, ArgInfo("value", false)) ? 0 : -1;
 }
 """)
 
 gen_template_set_prop_algo = Template("""
+static int jlopencv_${name}_set_${member}(jlopencv_${name}_t* p, jlObject *value, void *closure)
+{
+    if (!value)
+    {
+        jlErr_SetString(jlExc_TypeError, "Cannot delete the ${member} attribute");
+        return -1;
+    }
+    $cname* _self_ = dynamic_cast<$cname*>(p->v.get());
+    if (!_self_)
+    {
+        failmsgp("Incorrect type of object (must be '${name}' or its derivative)");
+        return -1;
+    }
+    return jlopencv_to(value, _self_${access}${member}, ArgInfo("value", false)) ? 0 : -1;
+}
 """)
 
 
 gen_template_prop_init = Template("""
-    """)
+    {(char*)"${member}", (getter)jlopencv_${name}_get_${member}, NULL, (char*)"${member}", NULL},""")
 
 gen_template_rw_prop_init = Template("""
-""")
+    {(char*)"${member}", (getter)jlopencv_${name}_get_${member}, (setter)jlopencv_${name}_set_${member}, (char*)"${member}", NULL},""")
 
 class FormatStrings:
     string = 's'
@@ -247,7 +322,7 @@ class ClassInfo(object):
                 if self.isalgorithm:
                     getset_code.write(gen_template_set_prop_algo.substitute(name=self.name, cname=self.cname, member=pname, membertype=p.tp, access=access_op))
                 else:
-                    getset_code.write(gen_template_set_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op, ctype = p.ctp))
+                    getset_code.write(gen_template_set_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op))
                 getset_inits.write(gen_template_rw_prop_init.substitute(name=self.name, member=pname))
 
         methods_code = StringIO()
@@ -619,7 +694,6 @@ class FuncInfo(object):
                     if tp.endswith("*"):
                         defval0 = "0"
                         tp1 = tp.replace("*", "_ptr")
-                    print(self.name)
                 tp_candidates = [a.tp, normalize_class_name(self.namespace + "." + a.tp)]
                 if any(tp in codegen.enums.keys() for tp in tp_candidates):
                     defval0 = "static_cast<%s>(%d)" % (a.tp, 0)

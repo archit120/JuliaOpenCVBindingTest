@@ -93,6 +93,21 @@ class ClassInfo(object):
         if not self.customname and self.wname.startswith("Cv"):
             self.wname = self.wname[2:]
 
+    def get_code(self):
+        if self.isalgorithm:
+            return "WIP"
+        if self.ismap:
+            return '.map_type<%s>("%s");'%(self.cname, self.wname)
+        if self.issimple and not self.isalgorithm:
+            stra =  '.add_type<%s>("%s")' % (self.cname, self.wname)
+            for constuctor in self.constructors:
+                stra = stra + '.constructor<%s>()' %constuctor.get_argument()
+            
+            #add get/set
+            return stra
+        return '.add_type<%s>("%s");' % (self.cname, self.wname)
+        # return code for functions and setters and getters if simple class or functions and map type
+
 
 class ArgInfo(object):
     """
@@ -192,7 +207,7 @@ class FuncVariant(object):
         # become the first optional input parameters of the jlthon function, and thus they are placed right after
         # non-optional input parameters)
         arglist = []
-
+        c_arglist = []
         # the list of "heavy" output parameters. Heavy parameters are the parameters
         # that can be expensive to allocate each time, such as vectors and matrices (see isbig).
         outarr_list = []
@@ -205,6 +220,8 @@ class FuncVariant(object):
         firstoptarg = 1000000
         for a in self.args:
             if a.name in self.array_counters:
+                print(a.name)
+                assert(0)
                 continue
             assert not a.tp in forbidden_arg_types, 'Forbidden type "{}" for argument "{}" in "{}" ("{}")'.format(a.tp, a.name, self.name, self.classname)
             if a.tp in ignored_arg_types:
@@ -266,7 +283,7 @@ class FuncVariant(object):
         if len(self.jl_outlist)==0:
             return ";"
         elif len(self.jl_outlist)==1:
-            return "return retval;"
+            return "return %s;" % self.jl_outlist[0][0]
         return "return make_tuple<%s>(%s);" %(",".join([x[2] for x in self.jl_outlist]), ",".join([x[0] for x in self.jl_outlist]))
     
     def get_argument(self):
@@ -274,7 +291,7 @@ class FuncVariant(object):
             arglist = self.jl_arglist[:-self.jl_noptargs]
         else:
             arglist = self.jl_arglist
-        if self.classname!="":
+        if self.classname!="" and not self.isconstructor:
             arglist = [("cobj", self.classname, self.classname)] + arglist
 
         argnamelist = [tp+" "+aname for aname, jtp, tp in arglist]
@@ -289,6 +306,8 @@ class FuncVariant(object):
             self.defargs.append(aname)
         for aname , _, _,_ in self.optlist:
             self.defargs.append(aname)
+
+        self.defargs.append("retval")
         self.c_arg_str = argstr
 
         return argstr
@@ -301,11 +320,14 @@ class FuncVariant(object):
         return outstr
 
     def get_retval(self):
-        stra = "auto retval = "
-        if self.classname and not self.isstatic:
-            stra = stra + "cobj.%s(%s); " %(self.name, ", ".join([x[0] for x in self.jl_arglist]))
+        if self.rettype:
+            stra = "auto retval = "
         else:
-            stra = stra + "%s(%s);" % (self.cname, ", ".join([x[0] for x in self.jl_arglist]))
+            stra = ""
+        if self.classname and not self.isstatic:
+            stra = stra + "cobj.%s(%s); " %(self.name, ", ".join([x.name for x in self.args]))
+        else:
+            stra = stra + "%s(%s);" % (self.cname, ", ".join([x.name for x in self.args]))
         return stra
 
     def get_complete_code(self, classname):
@@ -364,7 +386,7 @@ def add_func(decl):
             print("Mappable not supported yet")
             return
         if m == "/V":
-            print("h")
+            print("skipping ", name)
             return
 
     if isconstructor:
@@ -527,11 +549,15 @@ def gen(srcfiles, output_path):
                 for f in fs:
                     print("\t\t",f.name)
                     print("\t\t", f.get_complete_code(cl.cname))
+                    print("\t\t", f.jl_prototype)
+            print("\t", cl.get_code())
+
         print("\n")
         for mname, fs in ns.funcs.items():
             for f in fs:
                 print("\t", f.name)
                 print("\t", f.get_complete_code(""))
+                print("\t\t", f.jl_prototype)
 
         print("\n")
         for c1,c2 in ns.consts.items():

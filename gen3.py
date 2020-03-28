@@ -104,10 +104,31 @@ class ClassInfo(object):
                 stra = stra + '.constructor<%s>()' %constuctor.get_argument()
             
             #add get/set
+            stra = stra+self.get_setters()+self.get_getters()
             return stra
+
         return '.add_type<%s>("%s");' % (self.cname, self.wname)
         # return code for functions and setters and getters if simple class or functions and map type
 
+    def get_prop_func_cpp(self, mode, propname):
+        return "jlopencv_" + self.wname + "_"+mode+"_"+propname
+
+    def get_getters(self):
+        stra = ""
+        for prop in self.props:
+            if not self.isalgorithm:
+                stra = stra + '.method("%s", [](const %s &cobj) {return cobj.%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)
+    
+        return stra
+    def get_setters(self):
+        stra = ""
+        for prop in self.props:
+            if prop.readonly:
+                continue
+            if not self.isalgorithm:
+                stra = stra + '.method("%s", [](%s cobj,const %s &v) {cobj.%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
+
+        return stra
 
 class ArgInfo(object):
     """

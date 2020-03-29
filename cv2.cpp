@@ -45,23 +45,17 @@ jlcxx::ArrayRef<uint8_t, 3> Mat_mutable_data(cv::Mat Mat)
 
 JLCXX_MODULE cv2(jlcxx::Module &mod)
 {
-    
-    mod.add_type<Mat>("Mat").constructor<int, const int*, int, void *, const size_t*>();
+
+    mod.add_type<Mat>("Mat").constructor<int, const int *, int, void *, const size_t *>();
     mod.add_type<Point2f>("Point2f").constructor<float, float>().method("Point2f_get_x", [](const Point2f &a) { return a.x; }).method("Point2f_get_y", [](const Point2f &a) { return a.y; });
-    
-    mod.add_type<Size2i>("Size2i").constructor<int, int>().method("Size2i_get_height", [](const Size2i &a) {return a.height;}).method("Size2i_get_width",[](const Size2i &a){return a.width;});
-    mod.add_type<Rect2i>("Rect2i").constructor<int, int, int, int>()
-                                        .method("Rect2i_get_height", [](const Rect2i &a) {return a.height;})
-                                        .method("Rect2i_get_width",[](const Rect2i &a){return a.width;})
-                                        .method("Rect2i_get_x",[](const Rect2i &a){return a.x;})
-                                        .method("Rect2i_get_y",[](const Rect2i &a){return a.y;});
+
+    mod.add_type<Size2i>("Size2i").constructor<int, int>().method("Size2i_get_height", [](const Size2i &a) { return a.height; }).method("Size2i_get_width", [](const Size2i &a) { return a.width; });
+    mod.add_type<Rect2i>("Rect2i").constructor<int, int, int, int>().method("Rect2i_get_height", [](const Rect2i &a) { return a.height; }).method("Rect2i_get_width", [](const Rect2i &a) { return a.width; }).method("Rect2i_get_x", [](const Rect2i &a) { return a.x; }).method("Rect2i_get_y", [](const Rect2i &a) { return a.y; });
 
     mod.add_type<Scalar>("Scalar_").constructor<double, double, double, double>();
     mod.add_type<KeyPoint>("KeyPoint_").method("KeyPoint_get_pt", [](const KeyPoint &a) { return a.pt; }).method("KeyPoint_get_size", [](const KeyPoint &a) { return a.size; }).method("KeyPoint_get_angle", [](const KeyPoint &a) { return a.angle; }).method("KeyPoint_get_response", [](const KeyPoint &a) { return a.response; }).method("KeyPoint_get_octave", [](const KeyPoint &a) { return a.octave; }).method("KeyPoint_get_class_id", [](const KeyPoint &a) { return a.class_id; });
     mod.add_type<Feature2D>("Feature2D");
     mod.add_type<SimpleBlobDetector>("SimpleBlobDetector", jlcxx::julia_base_type<Feature2D>());
-
-    mod.add_type<CascadeClassifier>("CascadeClassifier").constructor<const std::string &>().method("detectMultiScale", [](CascadeClassifier c1, Mat a1, double a2, int a3, int a4, Size2i a5, Size2i a6){    std::vector<Rect> o1;c1.detectMultiScale(a1, o1,a2,a3,a4,a5,a6);return o1;}).method("empty", &CascadeClassifier::empty);
     mod.add_type<VideoCapture>("VideoCapture").constructor<const std::string &>().constructor<int>().method("read", [](VideoCapture c1) { Mat dst; return make_tuple(c1.read(dst), dst); });
 
     jlcxx::add_smart_pointer<cv::Ptr>(mod, "cv_Ptr");
@@ -81,6 +75,5 @@ JLCXX_MODULE cv2(jlcxx::Module &mod)
 
     // Algorithm Inherits
     mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
-    mod.method("simpleBlobDetector_create", []() { return cv::Ptr<SimpleBlobDetector>(SimpleBlobDetector::create()); });
-
-}
+    mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
+    mod.method("simpleBlobDetector_create", []() { return cv::Ptr<SimpleBlobDetector>(SimpleBlobDetector::create()); });}

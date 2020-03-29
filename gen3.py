@@ -101,11 +101,12 @@ class ClassInfo(object):
         if self.issimple and not self.isalgorithm:
             stra =  '.add_type<%s>("%s")' % (self.cname, self.wname)
             for constuctor in self.constructors:
-                stra = stra + '.constructor<%s>()' %constuctor.get_argument()
+                stra = stra + '.constructor<%s>()' %constuctor.get_argument_cons()
             
             #add get/set
             stra = stra+self.get_setters()+self.get_getters()
             return stra
+
 
         return '.add_type<%s>("%s");' % (self.cname, self.wname)
         # return code for functions and setters and getters if simple class or functions and map type
@@ -126,7 +127,7 @@ class ClassInfo(object):
             if prop.readonly:
                 continue
             if not self.isalgorithm:
-                stra = stra + '.method("%s", [](%s cobj,const %s &v) {cobj.%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
+                stra = stra + '.method("%s", [](%s &cobj,const %s &v) {cobj.%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
 
         return stra
 
@@ -306,18 +307,17 @@ class FuncVariant(object):
         elif len(self.jl_outlist)==1:
             return "return %s;" % self.jl_outlist[0][0]
         return "return make_tuple<%s>(%s);" %(",".join([x[2] for x in self.jl_outlist]), ",".join([x[0] for x in self.jl_outlist]))
-    
+    def get_argument_cons(self):
+        return ",".join(["const " + tp+ "&" for _,_,tp in self.jl_arglist])
+
     def get_argument(self):
-        if self.jl_noptargs:
-            arglist = self.jl_arglist[:-self.jl_noptargs]
-        else:
-            arglist = self.jl_arglist
+        arglist = self.jl_arglist
         if self.classname!="" and not self.isconstructor:
             arglist = [("cobj", self.classname, self.classname)] + arglist
 
-        argnamelist = [tp+" "+aname for aname, jtp, tp in arglist]
+        argnamelist = [tp+" &"+aname for aname, jtp, tp in arglist]
         argstr = ", ".join(argnamelist)
-        argnamelist = [tp+" "+aname+"="+defv for aname, jtp, tp,defv in self.optlist]
+        # argnamelist = [tp+" &"+aname+"="+defv for aname, jtp, tp,defv in self.optlist]
         # if len(argnamelist):
         #     if argstr:
         #         argstr = argstr+", "

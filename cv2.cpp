@@ -61,7 +61,7 @@ JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
     mod.add_type<SimpleBlobDetector>("SimpleBlobDetector", jlcxx::julia_base_type<Feature2D>());
 
     mod.add_type<CascadeClassifier>("CascadeClassifier").constructor<const std::string &>().method("detectMultiScale", [](CascadeClassifier c1, Mat a1, double a2, int a3, int a4, Size2i a5, Size2i a6){    std::vector<Rect> o1;c1.detectMultiScale(a1, o1,a2,a3,a4,a5,a6);return o1;}).method("empty", &CascadeClassifier::empty);
-    mod.add_type<VideoCapture>("VideoCapture").constructor<>().constructor<const std::string &>().constructor<int>().method("read", [](VideoCapture c1) { Mat dst; return make_tuple(c1.read(dst), dst); });
+    mod.add_type<VideoCapture>("VideoCapture").constructor<const std::string &>().constructor<int>().method("read", [](VideoCapture c1) { Mat dst; return make_tuple(c1.read(dst), dst); });
 
     jlcxx::add_smart_pointer<cv::Ptr>(mod, "cv_Ptr");
 

@@ -41,7 +41,6 @@ while true
     end
 
     cv2.imshow("facedetect", vis)
-    cv2.imshow("orig", img)
     if cv2.waitKey(5)==27
         break
     end

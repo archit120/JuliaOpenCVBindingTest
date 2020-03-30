@@ -10,17 +10,15 @@ img_color = cv2.imread(img_file, 1)
 
 cv2.imshow("win test - gray", img_gray)
 cv2.imshow("win test - color", img_color)
-# img_gray = img_gray .+ UInt8(100)
 
-# cv2.imshow("win test - gray2", img_gray)
-cv2.waitKey(1000)
+cv2.waitKey(0)
 
-# using Images, FileIO
+ve = view(img_color, :, 100:200, 100:200)
+ve .= 0
 
-# img = load(img_file)
+cv2.imshow("win test - color", img_color)
+cv2.imshow("win test - view", ve)
 
-# #TODO The colors are reversed
-# cv2.imshow("test - juliaimages", rawview(channelview(img))[:,:,:])
 cv2.waitKey(0)
 
 detector = cv2.simpleBlobDetector_create()

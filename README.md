@@ -22,3 +22,10 @@ The path for ```CMAKE_PREFIX_PATH``` will be the path of the build directory for
 cmake -DCMAKE_PREFIX_PATH=/path/to/libcxxwrap-julia-prefix .
 cmake --build .
 ```
+
+The branch automated-generation contains some WIP progress on automated generation of the wrappers. Run after modifying ```hdr_parser.py``` with appropriate header file directories.
+```
+python3 gen3.py
+```
+
+The script will output declrations for functions and classes along with other information.

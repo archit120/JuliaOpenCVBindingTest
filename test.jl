@@ -22,5 +22,5 @@ cv2.imshow("win test - view", ve)
 cv2.waitKey(0)
 
 detector = cv2.simpleBlobDetector_create()
-kps = cv2.simpleBlobDetector_solve(detector, img_gray)
+kps = cv2.simpleBlobDetector_detect(detector, img_gray)
 print(kps)

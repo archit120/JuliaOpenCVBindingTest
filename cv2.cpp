@@ -78,7 +78,7 @@ JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
     mod.method("Mat_mutable_data", &Mat_mutable_data);
 
     // Algorithm Inherits
-    mod.method("simpleBlobDetector_solve", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
+    mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
     mod.method("simpleBlobDetector_create", []() { return cv::Ptr<SimpleBlobDetector>(SimpleBlobDetector::create()); });
 
 }

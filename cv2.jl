@@ -141,8 +141,8 @@ module cv2
     function simpleBlobDetector_create()
         return jl_cpp_cv2.simpleBlobDetector_create()
     end
-    function simpleBlobDetector_solve(algo, img::Image)
-        ret = jl_cpp_cv2.simpleBlobDetector_solve(algo, jl_arr_to_cpp_mat(img))
+    function simpleBlobDetector_detect(algo, img::Image)
+        ret = jl_cpp_cv2.simpleBlobDetector_detect(algo, jl_arr_to_cpp_mat(img))
         arr = Array{cv2.KeyPoint, 1}()
         for it in ret
             push!(arr, cpp_KeyPoint_to_jl_KeyPoint(it))

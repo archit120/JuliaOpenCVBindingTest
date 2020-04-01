@@ -75,5 +75,5 @@ JLCXX_MODULE cv2(jlcxx::Module &mod)
 
     // Algorithm Inherits
     mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
-    mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
-    mod.method("simpleBlobDetector_create", []() { return cv::Ptr<SimpleBlobDetector>(SimpleBlobDetector::create()); });}
+    mod.method("simpleBlobDetector_create", []() { return cv::Ptr<SimpleBlobDetector>(SimpleBlobDetector::create()); });
+}

@@ -52,7 +52,7 @@ class ClassInfo(object):
         self.name = self.wname = normalize_class_name(name)
         self.sname = name[name.rfind('.') + 1:]
         self.ismap = False  #CV_EXPORTS_W_MAP
-        self.issimple = False   #CV_EXPORTS_W_SIMPLE
+        self.issimple = False   #CV_EXPORTS_W_SIMPLE #Probably not needed
         self.isalgorithm = False    #if class inherits from cv::Algorithm
         self.methods = {}   #Dictionary of methods
         self.props = []     #Collection of ClassProp associated with this class
@@ -93,23 +93,23 @@ class ClassInfo(object):
         if not self.customname and self.wname.startswith("Cv"):
             self.wname = self.wname[2:]
 
-    def get_code(self):
+    def get_cpp_code(self):
         if self.isalgorithm:
             return "WIP"
         if self.ismap:
             return '.map_type<%s>("%s");'%(self.cname, self.wname)
-        if self.issimple and not self.isalgorithm:
-            stra =  '.add_type<%s>("%s")' % (self.cname, self.wname)
-            for constuctor in self.constructors:
-                stra = stra + '.constructor<%s>()' %constuctor.get_argument_cons()
-            
-            #add get/set
-            stra = stra+self.get_setters()+self.get_getters()
-            return stra
+        stra =  '.add_type<%s>("%s")' % (self.cname, self.wname)
+        for constuctor in self.constructors:
+            stra = stra + '.constructor<%s>()' %constuctor.get_argument_cons()
+        
+        #add get/set
+        stra = stra+self.get_setters()+self.get_getters()
+        return stra
 
-
-        return '.add_type<%s>("%s");' % (self.cname, self.wname)
         # return code for functions and setters and getters if simple class or functions and map type
+
+    def get_jl_code(self):
+        return self.overload_get()+self.overload_set()
 
     def get_prop_func_cpp(self, mode, propname):
         return "jlopencv_" + self.wname + "_"+mode+"_"+propname
@@ -119,7 +119,8 @@ class ClassInfo(object):
         for prop in self.props:
             if not self.isalgorithm:
                 stra = stra + '.method("%s", [](const %s &cobj) {return cobj.%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)
-    
+            else:
+                stra = stra + '.method("%s", [](const cv::Ptr<%s> &cobj) {return cobj->%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)    
         return stra
     def get_setters(self):
         stra = ""
@@ -128,8 +129,28 @@ class ClassInfo(object):
                 continue
             if not self.isalgorithm:
                 stra = stra + '.method("%s", [](%s &cobj,const %s &v) {cobj.%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
-
+            else:
+                stra = stra + '.method("%s", [](%s cv::Ptr<cobj>, const %s &v) {cobj->%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
         return stra
+
+    def overload_get(self):
+        stra = "function Base.getproperty(m::%s, s::Symbol)\n" %(self.wname)
+        for prop in self.props:
+            stra = stra + "    if s==:" + prop.name+"\n"
+            stra = stra + "        return jlopencv_argconvert_jl(%s(m))\n"%self.get_prop_func_cpp("get", prop.name)
+            stra = stra + "    end\n" 
+        stra = stra + "    return Base.getfield(m, s)\nend\n"
+        return stra
+
+    def overload_set(self):
+        stra = "function Base.setproperty!(m::%s, s::Symbol, v)\n" %(self.wname)
+        for prop in self.props:
+            stra = stra + "    if s==:" + prop.name+"\n"
+            stra = stra + "        %s(m, jlopencv_argconvert_cpp(v))\n"%self.get_prop_func_cpp("set", prop.name)
+            stra = stra + "    end\n" 
+        stra = stra + "    return Base.setfield(m, s, v)\nend\n"
+        return stra
+
 
 class ArgInfo(object):
     """
@@ -571,7 +592,8 @@ def gen(srcfiles, output_path):
                     print("\t\t",f.name)
                     print("\t\t", f.get_complete_code(cl.cname))
                     print("\t\t", f.jl_prototype)
-            print("\t", cl.get_code())
+            print("\t", cl.get_cpp_code())
+            print("\t", cl.get_jl_code())
 
         print("\n")
         for mname, fs in ns.funcs.items():

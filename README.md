@@ -1,21 +1,22 @@
 # JuliaOpenCVBindingTest
- A simple example of Julia and OpenCV binding using CxxWrap.jl
+This branch has some progress on automated generation. Please look at gen3.py which can generate bits of relevant C++ code
 
-Compile with
-```
-cmake -DCMAKE_PREFIX_PATH={CxxWrap Prefix Path} .
-cmake --build .
-```
+### TODO
+ - Support Algorithm inherited classes
+ - Ensure correct argument conversion (Vectors, Mats, ...)
+ - Generate final namespace C++ code
+ - Julia side code
 
-Run as
-```
-julia test.jl
-```
+### DONE
+ - Constants and enums
+ - Most functions
+ - Most classes and classmethods that aren't inherited from Algorithm
+ - Getters and Setters
+ - Data retrieval form hdr_parser
 
-The test loads two images and then displays them. Then runs simpleblobdetector and shows output
 
-The path for CMAKE_PREFIX_PATH can be obtained from Julia using:
-```
-julia> using CxxWrap
-julia> CxxWrap.CxxWrapCore.prefix_path()
-```
+To run, first modify hdr_parser.py with appropriate header file names. Then use
+
+```python3 gen3.py```
+
+The script will crash but it will print relevant output regarding generated function code before exiting.

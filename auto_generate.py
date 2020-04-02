@@ -30,6 +30,7 @@ for decl in decls:
         print("TYPE: ", c1[0], " NAME: ", normalize_class_name(c1[1]))
         if decl[1]!='':
             assert(0)
+            # print(decl[1])
         if len(decl[2]) != 0:
             assert(0)
         for var in decl[3]:
@@ -38,7 +39,7 @@ for decl in decls:
         parts = c1[0].split('.')
         if 'mix' in c1[0]:
             print(decl)
-            input()
+            # input()
         print("TYPE: function NAME: ", normalize_class_name(c1[0]), "RETURN TYPE: ", decl[1], "modlist = ",decl[2])
         modlist.extend(decl[2])
         for var in decl[3]:
@@ -46,14 +47,14 @@ for decl in decls:
 
         if decl[4]!=decl[1]:
             print("Modifited Return: ", decl[4])
-            input()
+            # input()
             # assert(0)
     elif len(c1)!=1 and c1[0].startswith("class"):
         print("TYPE: ", c1[0], " NAME: ", normalize_class_name(c1[1]), "modlist = ", decl[2])
         classlist.append(normalize_class_name(c1[1]))
         modlist.extend(decl[2])
         if decl[1]!='':
-            assert(0)
+            print(decl[1])
         for var in decl[3]:
             print_arg_enum(var)
     print("")

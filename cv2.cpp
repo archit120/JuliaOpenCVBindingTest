@@ -45,7 +45,6 @@ jlcxx::ArrayRef<uint8_t, 3> Mat_mutable_data(cv::Mat Mat)
 
 JLCXX_MODULE cv2(jlcxx::Module &mod)
 {
-
     mod.add_type<Mat>("Mat").constructor<int, const int *, int, void *, const size_t *>();
     mod.add_type<Point2f>("Point2f").constructor<float, float>().method("Point2f_get_x", [](const Point2f &a) { return a.x; }).method("Point2f_get_y", [](const Point2f &a) { return a.y; });
 
@@ -74,6 +73,6 @@ JLCXX_MODULE cv2(jlcxx::Module &mod)
     mod.method("Mat_mutable_data", &Mat_mutable_data);
 
     // Algorithm Inherits
-    mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
+    mod.method("simpleBlobDetector_detect", [](cv::Ptr<Feature2D> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
     mod.method("simpleBlobDetector_create", []() { return cv::Ptr<SimpleBlobDetector>(SimpleBlobDetector::create()); });
 }

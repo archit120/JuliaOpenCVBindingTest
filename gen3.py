@@ -15,17 +15,18 @@ ignored_arg_types = ["RNG*"]
 
 pass_by_val_types = ["Point*", "Point2f*", "Rect*", "String*", "double*", "float*", "int*"]
 
-def handle_ptr(tp):
-    if tp.startswith('Ptr_'):
-        tp = 'Ptr<' + "::".join(tp.split('_')[1:]) + '>'
-    return tp
-
-
 def normalize_class_name(name):
     return re.sub(r"^cv\.", "", name).replace(".", "_")
 
 
-
+def handle_cpp_arg(inp):
+    def handle_vector(match):
+        return handle_cpp_arg("%svector<%s>" % (match.group(1), match.group(2)))
+    def handle_ptr(match):
+        return handle_cpp_arg("%sPtr<%s>" % (match.group(1), match.group(2)))
+    inp = re.sub("(.*)vector_(.*)", handle_vector, inp)
+    inp = re.sub("(.*)Ptr_(.*)", handle_ptr, inp)
+    return inp
 
 
 namespaces = {}
@@ -63,22 +64,36 @@ class ClassInfo(object):
         self.customname = False
         self.add_decl(decl)
         classes[name] = self
+        # print(name)
+        # input()
 
     def add_decl(self, decl):
         if decl:
             # print(decl)
-            bases = decl[1].split()[1:]
-            if len(bases) > 1:
-                assert(0)
-                #return sys.exit(-1)
-            elif len(bases) == 1:
-                assert(0)
-                self.base = bases[0].strip(",")
-                if self.base.startswith("cv::"):
-                    self.base = self.base[4:]
-                if self.base == "Algorithm":
-                    self.isalgorithm = True
-                self.base = self.base.replace("::", "_")
+            bases = decl[1].split(',')
+            if len(bases[0].split()) > 1:    
+                bases[0] = bases[0].split()[1]
+                
+                bases = [x.replace(' ','') for x in bases]
+                # print(bases)
+                if len(bases) > 1:
+                    print("More than one base", bases)
+                    bases = list(set(bases))
+                    bases.remove('cv::class')
+                    bases.remove('cv::Feature2D')
+                    # print(bases)
+                    # input()
+                    # assert(0)
+                    #return sys.exit(-1)
+                if len(bases) >= 1:
+                    # assert(0)
+
+                    self.base = bases[0]
+                    # print(self.base)
+                    # input()
+                    if self.base == "cv::Algorithm":
+                        self.isalgorithm = True
+                    self.base = self.base.replace("::", ".")
 
             for m in decl[2]:
                 if m.startswith("="):
@@ -94,17 +109,24 @@ class ClassInfo(object):
             self.wname = self.wname[2:]
 
     def get_cpp_code(self):
-        if self.isalgorithm:
-            return "WIP"
         if self.ismap:
-            return '.map_type<%s>("%s");'%(self.cname, self.wname)
-        stra =  '.add_type<%s>("%s")' % (self.cname, self.wname)
+            return 'mod.map_type<%s>("%s");'%(self.cname, self.wname)
+        cpp_code = StringIO()
+        if not self.base:
+            cpp_code.write('mod.add_type<%s>("%s")' % (self.cname, self.wname))
+        else:
+            cpp_code.write('mod.add_type<%s>("%s", jlcxx::julia_base_type<%s>())' % (self.cname, self.wname, self.base.replace('.', '::')))
+
         for constuctor in self.constructors:
-            stra = stra + '.constructor<%s>()' %constuctor.get_argument_cons()
+            cpp_code.write('\n.constructor<%s>()' %constuctor.get_argument_cons())
         
         #add get/set
-        stra = stra+self.get_setters()+self.get_getters()
-        return stra
+        cpp_code.write('\n')
+        cpp_code.write(self.get_setters())
+        cpp_code.write('\n')
+        cpp_code.write(self.get_getters())
+        cpp_code.write(';')
+        return cpp_code.getvalue()
 
         # return code for functions and setters and getters if simple class or functions and map type
 
@@ -118,9 +140,9 @@ class ClassInfo(object):
         stra = ""
         for prop in self.props:
             if not self.isalgorithm:
-                stra = stra + '.method("%s", [](const %s &cobj) {return cobj.%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)
+                stra = stra + '\n.method("%s", [](const %s &cobj) {return cobj.%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)
             else:
-                stra = stra + '.method("%s", [](const cv::Ptr<%s> &cobj) {return cobj->%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)    
+                stra = stra + '\n.method("%s", [](const cv::Ptr<%s> &cobj) {return cobj->%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)    
         return stra
     def get_setters(self):
         stra = ""
@@ -128,9 +150,9 @@ class ClassInfo(object):
             if prop.readonly:
                 continue
             if not self.isalgorithm:
-                stra = stra + '.method("%s", [](%s &cobj,const %s &v) {cobj.%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
+                stra = stra + '\n.method("%s", [](%s &cobj,const %s &v) {cobj.%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
             else:
-                stra = stra + '.method("%s", [](%s cv::Ptr<cobj>, const %s &v) {cobj->%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
+                stra = stra + '\n.method("%s", [](%s cv::Ptr<cobj>, const %s &v) {cobj->%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
         return stra
 
     def overload_get(self):
@@ -151,14 +173,17 @@ class ClassInfo(object):
         stra = stra + "    return Base.setfield(m, s, v)\nend\n"
         return stra
 
-
+argumentst = []
 class ArgInfo(object):
     """
     Helper class to parse and contain information about function arguments
     """
 
     def __init__(self, arg_tuple):
-        self.tp = arg_tuple[0] #C++ Type of argument
+        # print(arg_)
+        self.tp = handle_cpp_arg(arg_tuple[0]) #C++ Type of argument
+        argumentst.append(self.tp)
+
         self.jtp = self.tp #Julia Type of Argument
         self.name = arg_tuple[1] #Name of argument
         self.defval = arg_tuple[2] #Default value
@@ -196,14 +221,15 @@ class FuncVariant(object):
         self.classname = classname
         self.name = name
         self.cname = cname
-        print(name, cname)
+        # print(name, cname)
         self.isconstructor = isconstructor
         self.isstatic = istatic
         self.namespace = namespace
 
-        self.rettype = decl[4] or handle_ptr(decl[1])
+        self.rettype = decl[4] or handle_cpp_arg(decl[1])
         if self.rettype == "void":
             self.rettype = ""
+        self.rettype = handle_cpp_arg(self.rettype)
         self.args = []
         self.array_counters = {}
         for a in decl[3]:
@@ -301,7 +327,9 @@ class FuncVariant(object):
             outlist = [("retval", self.rettype, self.rettype)] + outlist
 
         if self.isconstructor:
-            assert outlist == []
+            # print(outlist)
+
+            assert outlist == [] or outlist == [("retval", "explicit", "explicit")]
             classname = self.classname
             if classname.startswith("Cv"):
                 classname=classname[2:]
@@ -327,16 +355,20 @@ class FuncVariant(object):
             return ";"
         elif len(self.jl_outlist)==1:
             return "return %s;" % self.jl_outlist[0][0]
-        return "return make_tuple<%s>(%s);" %(",".join([x[2] for x in self.jl_outlist]), ",".join([x[0] for x in self.jl_outlist]))
+        return "return make_tuple<%s>(%s);" %(",".join([x[2] if x[2] not in pass_by_val_types else x[2][:-1] for x in self.jl_outlist]), ",".join([x[0] for x in self.jl_outlist]))
     def get_argument_cons(self):
         return ",".join(["const " + tp+ "&" for _,_,tp in self.jl_arglist])
 
-    def get_argument(self):
+    def get_argument(self, isalgo):
         arglist = self.jl_arglist
         if self.classname!="" and not self.isconstructor:
-            arglist = [("cobj", self.classname, self.classname)] + arglist
+            if isalgo:
+                arglist = [("cobj", ("cv::Ptr<%s>" % self.classname), ("cv::Ptr<%s>" % self.classname))] + arglist
+            else:
+                arglist = [("cobj", self.classname, self.classname)] + arglist
 
-        argnamelist = [tp+" &"+aname for aname, jtp, tp in arglist]
+
+        argnamelist = [(tp if tp not in pass_by_val_types else tp[:-1]) +" &"+aname for aname, jtp, tp in arglist]
         argstr = ", ".join(argnamelist)
         # argnamelist = [tp+" &"+aname+"="+defv for aname, jtp, tp,defv in self.optlist]
         # if len(argnamelist):
@@ -358,22 +390,23 @@ class FuncVariant(object):
         outstr = ""
         for name, _, ctp in self.jl_outlist:
             if name not in self.defargs:
-                outstr = outstr + "%s %s;"%(ctp, name)
+                outstr = outstr + "%s %s;"%(ctp if ctp not in pass_by_val_types else ctp[:-1], name)
         return outstr
 
-    def get_retval(self):
+    def get_retval(self, isalgo):
         if self.rettype:
             stra = "auto retval = "
         else:
             stra = ""
         if self.classname and not self.isstatic:
-            stra = stra + "cobj.%s(%s); " %(self.name, ", ".join([x.name for x in self.args]))
+
+            stra = stra + "cobj%s%s(%s); " %("->" if isalgo else ".",self.name, ", ".join([(x.name if x.tp not in pass_by_val_types else "&" + x.name) for x in self.args]))
         else:
             stra = stra + "%s(%s);" % (self.cname, ", ".join([x.name for x in self.args]))
         return stra
 
-    def get_complete_code(self, classname):
-        outstr = '.method("%s",  [](%s) {%s %s %s})' % (self.get_wrapper_name(), self.get_argument(),self.get_def_outtypes(), self.get_retval(), self.get_return())
+    def get_complete_code(self, classname, isalgo=False):
+        outstr = '.method("%s",  [](%s) {%s %s %s})' % (self.get_wrapper_name(), self.get_argument(isalgo),self.get_def_outtypes(), self.get_retval(isalgo), self.get_return())
         return outstr
 
 
@@ -409,7 +442,7 @@ def add_func(decl):
     classname = ''
     bareclassname = ''
     if classes:
-        classname = normalize_class_name('.'.join(namespace+classes))
+        classname = ('.'.join(classes))
         bareclassname = classes[-1]
     namespace = '.'.join(namespace)
 
@@ -427,24 +460,24 @@ def add_func(decl):
         elif m.startswith("/mappable="):
             print("Mappable not supported yet")
             return
-        if m == "/V":
-            print("skipping ", name)
-            return
+        # if m == "/V":
+        #     print("skipping ", name)
+        #     return
 
     if isconstructor:
         name = "_".join(classes[:-1]+[name])
 
     if classname and classname not in namespaces[namespace].classes:
+        # print("HH1")
+        # print(namespace, classname)
         namespaces[namespace].classes[classname] = ClassInfo(classname)
 
     if is_static:
         # Add it as a method to the class
-        if classname not in namespaces[namespace].classes:
-            namespaces[namespace].classes[classname] = ClassInfo(classname)
         func_map = namespaces[namespace].classes[classname].methods
         if name not in func_map:
             func_map[name] = []
-        func_map[name].append(FuncVariant(classname, name, cname, decl, isconstructor, namespace))
+        func_map[name].append(FuncVariant(classname, name, cname, decl, isconstructor, namespace, True))
 
         # Add it as global function
         g_name = "_".join(classes+[name])
@@ -452,27 +485,29 @@ def add_func(decl):
         if name not in func_map:
             func_map[name] = []
 
-        func_map[name].append(FuncVariant("", g_name, cname, decl, isconstructor, namespace))
+        func_map[name].append(FuncVariant("", g_name, cname, decl, isconstructor, namespace, True))
     else:
         if classname:
             if isconstructor:
-                namespaces[namespace].classes[classname].constructors.append(FuncVariant(classname, name, cname, decl, True, namespace))
+                namespaces[namespace].classes[classname].constructors.append(FuncVariant(classname, name, cname, decl, True, namespace, True))
             else:
                 func_map = namespaces[namespace].classes[classname].methods
                 if name not in func_map:
                     func_map[name] = []
-                func_map[name].append(FuncVariant(classname, name, cname, decl, isconstructor, namespace))
+                func_map[name].append(FuncVariant(classname, name, cname, decl, isconstructor, namespace, False))
         else:
             func_map = namespaces[namespace].funcs
             if name not in func_map:
                 func_map[name] = []
-            func_map[name].append(FuncVariant("", name, cname, decl, False, namespace))
+            func_map[name].append(FuncVariant("", name, cname, decl, False, namespace, False))
 
 
 def add_class(stype, name, decl):
     """
     Creates class based on name and declaration. Add it to list of classes and to JSON file
     """
+    # print("n", name)
+
     classinfo = ClassInfo(name, decl)
     namespace, classes, name = split_decl_name(name)
     namespace = '.'.join(namespace)
@@ -481,6 +516,8 @@ def add_class(stype, name, decl):
         namespaces[namespace].classes[name].add_decl(decl)
     else:
         namespaces[namespace].classes[name] = classinfo
+    
+    # print(namespace, name)
     #print('class: ' + classinfo.cname + " => " + jl_name)
 
 
@@ -548,13 +585,11 @@ def gen(srcfiles, output_path):
                 # function
                 add_func(decl)
     # step 1.5 check if all base classes exist
+    # print(classes)
     for name, classinfo in classes.items():
         if classinfo.base:
-            chunks = classinfo.base.split('_')
-            base = '_'.join(chunks)
-            while base not in classes and len(chunks)>1:
-                del chunks[-2]
-                base = '_'.join(chunks)
+            base = classinfo.base
+            # print(base)
             if base not in classes:
                 print("Generator error: unable to resolve base %s for %s"
                     % (classinfo.base, classinfo.name))
@@ -582,32 +617,30 @@ def gen(srcfiles, output_path):
         process_isalgorithm(classinfo)
 
 
-
+    cpp_code = StringIO()
     for name, ns in namespaces.items():
-        print(ns.name)
+        cpp_code.write("JLCXX_MODULE %s(jlcxx::Module &mod) {\n" % name.split('.')[-1])
         for cname, cl in ns.classes.items():
-            print("\t",cl.name)
+            cpp_code.write(cl.get_cpp_code())
             for mname, fs in cl.methods.items():
                 for f in fs:
-                    print("\t\t",f.name)
-                    print("\t\t", f.get_complete_code(cl.cname))
-                    print("\t\t", f.jl_prototype)
-            print("\t", cl.get_cpp_code())
-            print("\t", cl.get_jl_code())
-
-        print("\n")
+                     cpp_code.write('\n    mod%s;'  % f.get_complete_code(cl.cname, cl.isalgorithm))
         for mname, fs in ns.funcs.items():
             for f in fs:
-                print("\t", f.name)
-                print("\t", f.get_complete_code(""))
-                print("\t\t", f.jl_prototype)
+                cpp_code.write('\n    mod%s;' % f.get_complete_code("", False))
 
-        print("\n")
-        for c1,c2 in ns.consts.items():
-            print("\t", c1,"\t",c2)
-        print("\n")
         for e1,e2 in ns.enums.items():
-            print("\t", e1)
+            cpp_code.write('\n    mod.add_bits<{1}>("{0}", jlcxx::julia_type("CppEnum"));\n'.format(e2[0], e2[1]))
+        for name, cname in sorted(ns.consts.items()):
+            cpp_code.write('    mod.set_const("%s", %s);\n'%(name, cname))
+            compat_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", name).upper()
+            if name != compat_name:
+                cpp_code.write('    mod.set_const("%s", %s);\n'%(compat_name, cname))
+
+        cpp_code.write('}\n');
+
+    
+    print(cpp_code.getvalue())
 
 
     # step 2: generate code for the classes and their methods

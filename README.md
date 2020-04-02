@@ -29,3 +29,5 @@ python3 gen3.py
 ```
 
 The script will output declrations for functions and classes along with other information.
+
+The file ````autocode.cpp``` contains auto-generated C++ code by gen3.py with additional formatting. The file does not compile right now but it is very close to the intended final result. 

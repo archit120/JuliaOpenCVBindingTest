@@ -368,7 +368,7 @@ class FuncVariant(object):
                 arglist = [("cobj", self.classname, self.classname)] + arglist
 
 
-        argnamelist = [(tp if tp not in pass_by_val_types else tp[:-1]) +" &"+aname for aname, jtp, tp in arglist]
+        argnamelist = [(tp if tp not in pass_by_val_types else tp[:-1]) +" "+aname for aname, jtp, tp in arglist]
         argstr = ", ".join(argnamelist)
         # argnamelist = [tp+" &"+aname+"="+defv for aname, jtp, tp,defv in self.optlist]
         # if len(argnamelist):

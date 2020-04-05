@@ -46,6 +46,7 @@ jlcxx::ArrayRef<uint8_t, 3> Mat_mutable_data(cv::Mat Mat)
 JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
 {
     mod.add_type<Mat>("Mat").constructor<int, const int*, int, void *, const size_t*>();
+    
     mod.add_type<Point2f>("Point2f").constructor<float, float>().method("Point2f_get_x", [](const Point2f &a) { return a.x; }).method("Point2f_get_y", [](const Point2f &a) { return a.y; });
     
     mod.add_type<Size2i>("Size2i").constructor<int, int>().method("Size2i_get_height", [](const Size2i &a) {return a.height;}).method("Size2i_get_width",[](const Size2i &a){return a.width;});
@@ -76,6 +77,9 @@ JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
     mod.method("destroyAllWindows", []() { cv::destroyAllWindows(); });
 
     mod.method("Mat_mutable_data", &Mat_mutable_data);
+    mod.method("Mat_mutable_data_2", [](Mat m){
+        return make_tuple(m.data, m.type(), m.channels(), m.size[1], m.size[0], m.step[1], m.step[0]);
+    });
 
     // Algorithm Inherits
     mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });

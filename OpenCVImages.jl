@@ -2,18 +2,19 @@
 
 module OpenCVImages
 
+dtypes = Union{UInt8, Int8, UInt16, Int16, Int32, Float32, Float64}
 
-struct OpenCVImage{T} <: AbstractArray{T,3}
+struct OpenCVImage{T <: dtypes} <: AbstractArray{T,3}
     mat
     data_raw
     data
 
-    @inline function OpenCVImage{T}(mat, data_raw) where {T}
+    @inline function OpenCVImage{T}(mat, data_raw::AbstractArray{T,3}) where {T <: dtypes}
         data = reinterpret(T, data_raw)
         new{T}(mat, data_raw, data)
     end
 
-    @inline function OpenCVImage{T}(data_raw) where {T}
+    @inline function OpenCVImage{T}(data_raw::AbstractArray{T, 3}) where {T <: dtypes}
         data = reinterpret(T, data_raw)
         mat = nothing
         new{T}(mat, data_raw, data)

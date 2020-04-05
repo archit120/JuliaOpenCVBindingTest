@@ -45,7 +45,9 @@ module cv2
         class_id::Integer
     end
 
-    const Image = Union{OpenCVImages.OpenCVImage{A} where {A}, SubArray{UInt8, N, OpenCVImages.OpenCVImage{A}, T} where {N, A, T}}
+    const dtypes = Union{UInt8, Int8, UInt16, Int16, Int32, Float32, Float64}
+
+    const Image = Union{OpenCVImages.OpenCVImage{A} where {A}, SubArray{T2, N, OpenCVImages.OpenCVImage{A}, T} where {N, A, T, T2 <: dtypes}}
     const Scalar = Union{Tuple{Float64}, Tuple{Float64, Float64}, Tuple{Float64, Float64, Float64}, NTuple{4, Float64}}
     const Size = Tuple{Integer, Integer}
     const Rect = NTuple{4, Integer}
@@ -58,10 +60,31 @@ module cv2
     change_major_order(X::AbstractArray, size...=size(X)...) = permutedims(reshape(X, reverse([size...])...), length(size):-1:1)
 
     function cpp_mat_to_jl_arr(mat)
-        arr = jl_cpp_cv2.Mat_mutable_data(mat)
-        #TODO: Implement types
+        rets = jl_cpp_cv2.Mat_mutable_data_2(mat)
+        if rets[2] == CV_MAKE_TYPE(CV_8U, rets[3])
+            dtype = UInt8
+        elseif rets[2]==CV_MAKE_TYPE(CV_8S, rets[3])
+            dtype = Int8
+        elseif rets[2]==CV_MAKE_TYPE(CV_16U, rets[3])
+            dtype = UInt16
+        elseif rets[2]==CV_MAKE_TYPE(CV_16S, rets[3])
+            dtype = Int16
+        elseif rets[2]==CV_MAKE_TYPE(CV_32S, rets[3])
+            dtype = Int32
+        elseif rets[2]==CV_MAKE_TYPE(CV_32F, rets[3])
+            dtype = Float32
+        elseif rets[2]==CV_MAKE_TYPE(CV_64F, rets[3])
+            dtype = Float64
+        else
+            print("BAD type")
+        end
+        steps = [rets[6]/sizeof(dtype), rets[7]/sizeof(dtype)]
+        # println(steps[1]/rets[3], steps[2]/rets[3]/rets[4])
+        #TODO: Implement views when steps do not result in continous memory
+        arr = Base.unsafe_wrap(Array{dtype, 3}, Ptr{dtype}(rets[1].cpp_object), (rets[3], rets[4], rets[5]))
+
         #Preserve Mat so that array allocated by C++ isn't deallocated
-        return OpenCVImages.OpenCVImage{UInt8}(mat, arr)
+        return OpenCVImages.OpenCVImage{dtype}(mat, arr)
     end
 
     function jl_arr_to_cpp_mat(img::Image)
@@ -77,8 +100,25 @@ module cv2
 
             push!(ndims_a, Int32(size(img)[3]))
             push!(ndims_a, Int32(size(img)[2]))
+            if eltype(img) == UInt8
+                return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_8U, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            elseif eltype(img) == UInt16
+                return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_16U, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            elseif eltype(img) == Int8
+                return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_8S, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            elseif eltype(img) == Int16
+                return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_16S, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            elseif eltype(img) == Int32
+                return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_32S, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            elseif eltype(img) == Float32
+                return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_32F, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            elseif eltype(img) == Float64
+                return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_64F, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            end
 
-            return jl_cpp_cv2.Mat(2, pointer(ndims_a), CV_MAKE_TYPE(CV_8U, size(img)[1]), Ptr{Nothing}(pointer(img)), pointer(steps_a))
+            print("Bad Type")
+            print(steps)
+            
         else
             print("Bad steps")
             print(steps)

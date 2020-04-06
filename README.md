@@ -2,9 +2,10 @@
 This branch has some progress on automated generation. Please look at gen3.py which can generate bits of relevant C++ code
 
 ### TODO
- - Ensure correct argument conversion (Vectors, Mats, ...)
+ - Ensure correct argument conversion (Vectors, Mats, ...) - partially done
  - Julia side code
- - Handle types.hpp
+ - Tests
+
 
 ### DONE
  - Constants and enums
@@ -14,6 +15,7 @@ This branch has some progress on automated generation. Please look at gen3.py wh
  - Data retrieval form hdr_parser
  - Support Algorithm inherited classes
  - Generate final namespace C++ code
+ - Handle types.hpp
 
 
 To run, first modify hdr_parser.py with appropriate header file names. Then use

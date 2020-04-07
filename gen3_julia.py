@@ -18,16 +18,30 @@ pass_by_val_types = ["Point*", "Point2f*", "Rect*", "String*", "double*", "float
 def normalize_class_name(name):
     return re.sub(r"^cv\.", "", name).replace(".", "_")
 
+argmap = {"int": "Int32", "float":"Float32", "double":"Float64", "bool":"Bool"}
 
-def handle_cpp_arg(inp):
+def handle_def_arg(inp):
+    if inp=="String()":
+            return '""'
     def handle_vector(match):
-        return handle_cpp_arg("%svector<%s>" % (match.group(1), match.group(2)))
-    def handle_ptr(match):
-        return handle_cpp_arg("%sPtr<%s>" % (match.group(1), match.group(2)))
-    inp = re.sub("(.*)vector_(.*)", handle_vector, inp)
-    inp = re.sub("(.*)Ptr_(.*)", handle_ptr, inp)
+        return handle_jl_arg("%sCxxWrap.StdVector{%s}()" % (match.group(1), match.group(2)))
+    inp = re.sub("std::vector<(.*)>", handle_vector, inp)
+    for k in argmap:
+        inp = inp.replace(k, argmap[k])
     return inp
 
+def handle_jl_arg(inp):
+    def handle_vector(match):
+        return handle_jl_arg("%svector{%s}" % (match.group(1), match.group(2)))
+    def handle_ptr(match):
+        return handle_jl_arg("%sPtr{%s}" % (match.group(1), match.group(2)))
+    inp = re.sub("(.*)vector_(.*)", handle_vector, inp)
+    inp = re.sub("(.*)Ptr_(.*)", handle_ptr, inp)
+    for k in argmap:
+        inp = inp.replace(k, argmap[k])
+    return inp
+
+  
 
 namespaces = {}
 enums = {}
@@ -41,7 +55,6 @@ class ClassProp(object):
     """
     def __init__(self, decl):
         self.tp = decl[0].replace("*", "_ptr")
-        self.ctp = decl[0]
         self.name = decl[1]
         self.readonly = True
         if "/RW" in decl[3]:
@@ -80,7 +93,11 @@ class ClassInfo(object):
                     print("More than one base", bases)
                     bases = list(set(bases))
                     bases.remove('cv::class')
-                    bases.remove('cv::Feature2D')
+                    bases_clear = []
+                    for bb in bases:
+                        if self.name not in bb:
+                            bases_clear.append(bb)
+                    bases = bases_clear
                     # print(bases)
                     # input()
                     # assert(0)
@@ -108,58 +125,17 @@ class ClassInfo(object):
         if not self.customname and self.wname.startswith("Cv"):
             self.wname = self.wname[2:]
 
-    def get_cpp_code(self):
-        if self.ismap:
-            return 'mod.map_type<%s>("%s");'%(self.cname, self.wname)
-        cpp_code = StringIO()
-        if not self.base:
-            cpp_code.write('mod.add_type<%s>("%s")' % (self.cname, self.wname))
-        else:
-            cpp_code.write('mod.add_type<%s>("%s", jlcxx::julia_base_type<%s>())' % (self.cname, self.wname, self.base.replace('.', '::')))
-
-        for constuctor in self.constructors:
-            cpp_code.write('\n.constructor<%s>()' %constuctor.get_argument_cons())
-        
-        #add get/set
-        cpp_code.write('\n')
-        cpp_code.write(self.get_setters())
-        cpp_code.write('\n')
-        cpp_code.write(self.get_getters())
-        cpp_code.write(';')
-        return cpp_code.getvalue()
-
-        # return code for functions and setters and getters if simple class or functions and map type
-
     def get_jl_code(self):
         return self.overload_get()+self.overload_set()
 
     def get_prop_func_cpp(self, mode, propname):
         return "jlopencv_" + self.wname + "_"+mode+"_"+propname
 
-    def get_getters(self):
-        stra = ""
-        for prop in self.props:
-            if not self.isalgorithm:
-                stra = stra + '\n.method("%s", [](const %s &cobj) {return cobj.%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)
-            else:
-                stra = stra + '\n.method("%s", [](const cv::Ptr<%s> &cobj) {return cobj->%s;})' % (self.get_prop_func_cpp("get", prop.name), self.cname, prop.name)    
-        return stra
-    def get_setters(self):
-        stra = ""
-        for prop in self.props:
-            if prop.readonly:
-                continue
-            if not self.isalgorithm:
-                stra = stra + '\n.method("%s", [](%s &cobj,const %s &v) {cobj.%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
-            else:
-                stra = stra + '\n.method("%s", [](%s cv::Ptr<cobj>, const %s &v) {cobj->%s=v;})' % (self.get_prop_func_cpp("set", prop.name), self.cname, prop.ctp, prop.name)
-        return stra
-
     def overload_get(self):
         stra = "function Base.getproperty(m::%s, s::Symbol)\n" %(self.wname)
         for prop in self.props:
             stra = stra + "    if s==:" + prop.name+"\n"
-            stra = stra + "        return jlopencv_argconvert_jl(%s(m))\n"%self.get_prop_func_cpp("get", prop.name)
+            stra = stra + "        return cpp_to_julia(%s(m))\n"%self.get_prop_func_cpp("get", prop.name)
             stra = stra + "    end\n" 
         stra = stra + "    return Base.getfield(m, s)\nend\n"
         return stra
@@ -167,8 +143,9 @@ class ClassInfo(object):
     def overload_set(self):
         stra = "function Base.setproperty!(m::%s, s::Symbol, v)\n" %(self.wname)
         for prop in self.props:
+        
             stra = stra + "    if s==:" + prop.name+"\n"
-            stra = stra + "        %s(m, jlopencv_argconvert_cpp(v))\n"%self.get_prop_func_cpp("set", prop.name)
+            stra = stra + "        %s(m, julia_to_cpp(v, %s))\n"%(self.get_prop_func_cpp("set", prop.name), prop.tp)
             stra = stra + "    end\n" 
         stra = stra + "    return Base.setfield(m, s, v)\nend\n"
         return stra
@@ -181,10 +158,8 @@ class ArgInfo(object):
 
     def __init__(self, arg_tuple):
         # print(arg_)
-        self.tp = handle_cpp_arg(arg_tuple[0]) #C++ Type of argument
+        self.tp = handle_jl_arg(arg_tuple[0]) #C++ Type of argument
         argumentst.append(self.tp)
-
-        self.jtp = self.tp #Julia Type of Argument
         self.name = arg_tuple[1] #Name of argument
         self.defval = arg_tuple[2] #Default value
         self.isarray = False #Is the argument an array
@@ -226,10 +201,10 @@ class FuncVariant(object):
         self.isstatic = istatic
         self.namespace = namespace
 
-        self.rettype = decl[4] or handle_cpp_arg(decl[1])
+        self.rettype = decl[4] or handle_jl_arg(decl[1])
         if self.rettype == "void":
             self.rettype = ""
-        self.rettype = handle_cpp_arg(self.rettype)
+        self.rettype = handle_jl_arg(self.rettype)
         self.args = []
         self.array_counters = {}
         for a in decl[3]:
@@ -289,29 +264,30 @@ class FuncVariant(object):
         firstoptarg = 1000000
         for a in self.args:
             if a.name in self.array_counters:
-                print(a.name)
+                # print(a.name)
                 assert(0)
                 continue
             assert not a.tp in forbidden_arg_types, 'Forbidden type "{}" for argument "{}" in "{}" ("{}")'.format(a.tp, a.name, self.name, self.classname)
             if a.tp in ignored_arg_types:
                 continue
             if a.returnarg:
-                outlist.append((a.name, a.jtp, a.tp))
+                outlist.append((a.name, a.tp))
             if (not a.inputarg) and a.isbig:
-                outarr_list.append((a.name, a.jtp, a.tp))
+                outarr_list.append((a.name, a.tp))
                 continue
             if not a.inputarg:
                 continue
             if not a.defval:
-                arglist.append((a.name, a.jtp, a.tp))
+                arglist.append((a.name, a.tp))
             else:
                 # if there are some array output parameters before the first default parameter, they
                 # are added as optional parameters before the first optional parameter
+                # print(a.defval)
                 if outarr_list:
                     arglist += outarr_list
                     outarr_list = []
-                arglist.append((a.name, a.jtp, a.tp))
-                optlist.append((a.name, a.jtp, a.tp, a.defval))
+                arglist.append((a.name, a.tp))
+                optlist.append((a.name, a.tp, a.defval))
 
         if outarr_list:
             firstoptarg = min(firstoptarg, len(arglist))
@@ -319,94 +295,69 @@ class FuncVariant(object):
         firstoptarg = min(firstoptarg, len(arglist))
 
         noptargs = len(arglist) - firstoptarg
-        argnamelist = [aname+"::"+jtp for aname, jtp, tp in arglist]
+        argnamelist = [aname+"::"+tp for aname, tp in arglist]
         argstr = ", ".join(argnamelist[:firstoptarg])
         if noptargs != 0:
             argstr = argstr + "; " +", ".join(argnamelist[firstoptarg:])
         if self.rettype:
-            outlist = [("retval", self.rettype, self.rettype)] + outlist
+            outlist = [("retval", self.rettype)] + outlist
 
         if self.isconstructor:
             # print(outlist)
 
-            assert outlist == [] or outlist == [("retval", "explicit", "explicit")]
+            assert outlist == [] or outlist == [("retval", "explicit")]
             classname = self.classname
             if classname.startswith("Cv"):
                 classname=classname[2:]
             outstr = classname
-            outlist = [("retval", classname, classname)]
+            outlist = [("retval", classname)]
         elif outlist:
             outstr = "( "+", ".join([o[0]+"::"+o[1] for o in outlist]) + " ) "
         else:
             outstr = "nothing"
+        if self.classname!="" and not self.isconstructor:
+            arglist = [("cobj", "Any")] + arglist
+            firstoptarg+=1
 
         self.jl_arg_str = argstr #Argument string for function
         self.jl_return_str = outstr #Return values string
         self.jl_prototype = "%s(%s) -> %s" % (self.name, argstr, outstr)
         self.jl_noptargs = noptargs
+        self.firstoptarg = firstoptarg
         self.optlist = optlist
+
+
         self.jl_arglist = arglist
         self.jl_outlist = outlist
 
         self.defargs = []
 
-    def get_return(self):
-        if len(self.jl_outlist)==0:
-            return ";"
-        elif len(self.jl_outlist)==1:
-            return "return %s;" % self.jl_outlist[0][0]
-        return "return make_tuple<%s>(%s);" %(",".join([x[2] if x[2] not in pass_by_val_types else x[2][:-1] for x in self.jl_outlist]), ",".join([x[0] for x in self.jl_outlist]))
-    def get_argument_cons(self):
-        return ",".join(["const " + tp+ "&" for _,_,tp in self.jl_arglist])
-
-    def get_argument(self, isalgo):
+    def get_argument_full(self):
         arglist = self.jl_arglist
-        if self.classname!="" and not self.isconstructor:
-            if isalgo:
-                arglist = [("cobj", ("cv::Ptr<%s>" % self.classname), ("cv::Ptr<%s>" % self.classname))] + arglist
-            else:
-                arglist = [("cobj", self.classname, self.classname)] + arglist
 
-
-        argnamelist = [(tp if tp not in pass_by_val_types else tp[:-1]) +" "+aname for aname, jtp, tp in arglist]
+        argnamelist = [aname+"::"+(tp if tp not in pass_by_val_types else tp[:-1]) for aname, tp in arglist]
         argstr = ", ".join(argnamelist)
-        # argnamelist = [tp+" &"+aname+"="+defv for aname, jtp, tp,defv in self.optlist]
-        # if len(argnamelist):
-        #     if argstr:
-        #         argstr = argstr+", "
-        #     argstr = argstr +", ".join(argnamelist)
-
-        for aname , _, _ in self.jl_arglist:
-            self.defargs.append(aname)
-        for aname , _, _,_ in self.optlist:
-            self.defargs.append(aname)
-
-        self.defargs.append("retval")
-        self.c_arg_str = argstr
-
         return argstr
 
-    def get_def_outtypes(self):
-        outstr = ""
-        for name, _, ctp in self.jl_outlist:
-            if name not in self.defargs:
-                outstr = outstr + "%s %s;"%(ctp if ctp not in pass_by_val_types else ctp[:-1], name)
-        return outstr
+    def get_argument_opt(self):
+        str2 =  ", ".join(["%s::%s = %s" % (name, tp, defv) for name,tp, defv in self.optlist])
+        return str2
 
-    def get_retval(self, isalgo):
-        if self.rettype:
-            stra = "auto retval = "
+    def get_argument_def(self):
+        if len(self.optlist):
+            str2 = ", ".join(["%s::%s" %(name, tp) for name,tp in self.jl_arglist[:-len(self.optlist)]])
         else:
-            stra = ""
-        if self.classname and not self.isstatic:
+            str2 = ", ".join(["%s::%s" %(name, tp) for name,tp in self.jl_arglist])
+        return str2
 
-            stra = stra + "cobj%s%s(%s); " %("->" if isalgo else ".",self.name, ", ".join([(x.name if x.tp not in pass_by_val_types else "&" + x.name) for x in self.args]))
-        else:
-            stra = stra + "%s(%s);" % (self.cname, ", ".join([x.name for x in self.args]))
-        return stra
-
-    def get_complete_code(self, classname, isalgo=False):
-        outstr = '.method("%s",  [](%s) {%s %s %s})' % (self.get_wrapper_name(), self.get_argument(isalgo),self.get_def_outtypes(), self.get_retval(isalgo), self.get_return())
+    def get_return(self):
+        return "return cpp_to_julia(%s(%s))" %(self.get_wrapper_name(), ",".join(["julia_to_cpp(%s)" % x for x, _ in self.jl_arglist]))
+ 
+    def get_complete_code(self):
+        outstr = 'function %s(%s)\n\t%s\nend\n' % (self.name, self.get_argument_full(),self.get_return())
+        str2 = ", ".join([x for x, _ in self.jl_arglist])
+        # outstr = outstr +
+        outstr = outstr + ('%s(%s; %s) = %s(%s)\n' % (self.name, self.get_argument_def(), self.get_argument_opt(), self.name, str2))
         return outstr
 
 
@@ -617,32 +568,24 @@ def gen(srcfiles, output_path):
         process_isalgorithm(classinfo)
 
 
-    cpp_code = StringIO()
+    jl_code = StringIO()
     for name, ns in namespaces.items():
-        cpp_code.write("JLCXX_MODULE %s(jlcxx::Module &mod) {\n" % name.split('.')[-1])
+        # jl_code.write("JLCXX_MODULE %s(jlcxx::Module &mod) {\n" % name.split('.')[-1])
         for cname, cl in ns.classes.items():
-            cpp_code.write(cl.get_cpp_code())
+            jl_code.write(cl.get_jl_code())
             for mname, fs in cl.methods.items():
                 for f in fs:
-                     cpp_code.write('\n    mod%s;'  % f.get_complete_code(cl.cname, cl.isalgorithm))
+                     jl_code.write('\n%s'  % f.get_complete_code())
         for mname, fs in ns.funcs.items():
             for f in fs:
-                cpp_code.write('\n    mod%s;' % f.get_complete_code("", False))
+                jl_code.write('\n%s' % f.get_complete_code())
 
-        for e1,e2 in ns.enums.items():
-            cpp_code.write('\n    mod.add_bits<{1}>("{0}", jlcxx::julia_type("CppEnum"));\n'.format(e2[0], e2[1]))
-        for name, cname in sorted(ns.consts.items()):
-            cpp_code.write('    mod.set_const("%s", %s);\n'%(name, cname))
-            compat_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", name).upper()
-            if name != compat_name:
-                cpp_code.write('    mod.set_const("%s", %s);\n'%(compat_name, cname))
-
-        cpp_code.write('}\n');
+        # jl_code.write(' \n');
 
     
-    print(cpp_code.getvalue())
+    print(jl_code.getvalue())
 
-
+    # print(set(argumentst))
     # step 2: generate code for the classes and their methods
     classlist = list(classes.items())
     classlist.sort()

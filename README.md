@@ -25,9 +25,9 @@ cmake --build .
 
 The branch automated-generation contains some WIP progress on automated generation of the wrappers. Run after modifying ```hdr_parser.py``` with appropriate header file directories.
 ```
-python3 gen3.py
+python3 gen3_{lang}.py
 ```
 
 The script will output declrations for functions and classes along with other information.
 
-The file ````autocode.cpp``` contains auto-generated C++ code by gen3.py with additional formatting. The file does not compile right now but it is very close to the intended final result. 
+The file ```autocode.cpp``` contains auto-generated C++ code by gen3_cpp.py with additional formatting. The file  ```autocode.jl``` contains auto-generated Julia side code for wrapping. The files do not compile right now but are close to the intended final result. 

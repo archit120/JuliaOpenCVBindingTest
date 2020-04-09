@@ -15,6 +15,46 @@ ignored_arg_types = ["RNG*"]
 
 pass_by_val_types = ["Point*", "Point2f*", "Rect*", "String*", "double*", "float*", "int*"]
 
+ns_template = """
+#include <vector>
+
+#include "jlcxx/jlcxx.hpp"
+#include "jlcxx/functions.hpp"
+#include "jlcxx/stl.hpp"
+#include "jlcxx/array.hpp"
+#include "jlcxx/tuple.hpp"
+
+#include <opencv4/opencv2/opencv.hpp>
+#include <opencv4/opencv2/opencv_modules.hpp>
+
+using namespace cv;
+using namespace std;
+using namespace jlcxx;
+
+#ifdef HAVE_OPENCV_FEATURES2D
+typedef SimpleBlobDetector::Params SimpleBlobDetector_Params;
+typedef AKAZE::DescriptorType AKAZE_DescriptorType;
+typedef AgastFeatureDetector::DetectorType AgastFeatureDetector_DetectorType;
+typedef FastFeatureDetector::DetectorType FastFeatureDetector_DetectorType;
+typedef DescriptorMatcher::MatcherType DescriptorMatcher_MatcherType;
+typedef KAZE::DiffusivityType KAZE_DiffusivityType;
+typedef ORB::ScoreType ORB_ScoreType;
+#endif
+
+#ifdef HAVE_OPENCV_OBJDETECT
+
+#include "opencv4/opencv2/objdetect.hpp"
+
+typedef HOGDescriptor::HistogramNormType HOGDescriptor_HistogramNormType;
+typedef HOGDescriptor::DescriptorStorageFormat HOGDescriptor_DescriptorStorageFormat;
+
+#endif
+
+typedef flann::IndexParams flann_IndexParams ;
+typedef flann::SearchParams flann_SearchParams ;
+
+"""
+
 def normalize_class_name(name):
     return re.sub(r"^cv\.", "", name).replace(".", "_")
 
@@ -76,7 +116,7 @@ class ClassInfo(object):
                 bases = [x.replace(' ','') for x in bases]
                 # print(bases)
                 if len(bases) > 1:
-                    print("More than one base", bases)
+                    # print("More than one base", bases)
                     bases = list(set(bases))
                     bases.remove('cv::class')
                     bases_clear = []
@@ -228,7 +268,6 @@ class FuncVariant(object):
         if (name,cname) not in functions:
             functions[(name,cname)]= []
         functions[(name, cname)].append(self)
-
     
     def get_wrapper_name(self):
         """
@@ -337,20 +376,20 @@ class FuncVariant(object):
             return ";"
         elif len(self.jl_outlist)==1:
             return "return %s;" % self.jl_outlist[0][0]
-        return "return make_tuple<%s>(%s);" %(",".join([x[1] if x[1] not in pass_by_val_types else x[1][:-1] for x in self.jl_outlist]), ",".join([x[0] for x in self.jl_outlist]))
+        return "return make_tuple<%s>(%s);" %(",".join([x[1] if x[1] not in pass_by_val_types else x[1][:-1] for x in self.jl_outlist]), ",".join(["move(%s)" % x[0] for x in self.jl_outlist]))
     def get_argument_cons(self):
         return ",".join(["const " + tp+ "&" for _,tp in self.jl_arglist])
 
     def get_argument(self, isalgo):
         arglist = self.jl_arglist
-        if self.classname!="" and not self.isconstructor:
+        if self.classname!="" and not self.isconstructor and not self.isstatic:
             if isalgo:
                 arglist = [("cobj", ("cv::Ptr<%s>" % self.classname))] + arglist
             else:
                 arglist = [("cobj", self.classname)] + arglist
 
 
-        argnamelist = [(tp if tp not in pass_by_val_types else tp[:-1]) +" "+aname for aname, tp in arglist]
+        argnamelist = [(tp if tp not in pass_by_val_types else tp[:-1]) +"& "+aname for aname, tp in arglist]
         argstr = ", ".join(argnamelist)
         # argnamelist = [tp+" &"+aname+"="+defv for aname, tp,defv in self.optlist]
         # if len(argnamelist):
@@ -380,11 +419,12 @@ class FuncVariant(object):
             stra = "auto retval = "
         else:
             stra = ""
+        argstr = ", ".join([(x.name if x.tp not in pass_by_val_types else "&" + x.name) for x in self.args if x.tp not in ignored_arg_types])
         if self.classname and not self.isstatic:
 
-            stra = stra + "cobj%s%s(%s); " %("->" if isalgo else ".",self.name, ", ".join([(x.name if x.tp not in pass_by_val_types else "&" + x.name) for x in self.args]))
+            stra = stra + "cobj%s%s(%s); " %("->" if isalgo else ".",self.cname, argstr)
         else:
-            stra = stra + "%s(%s);" % (self.cname, ", ".join([x.name for x in self.args]))
+            stra = stra + "%s(%s);" % (self.cname, argstr)
         return stra
 
     def get_complete_code(self, classname, isalgo=False):
@@ -518,16 +558,20 @@ def add_const(name, decl):
 
 def add_enum(name, decl):
     wname = normalize_class_name(name)
+    # print(name)
     if wname.endswith("<unnamed>"):
         wname = None
     else:
-        enums[name.replace(".", "::")] = name
+        enums[name.replace(".", "::")] = wname
     const_decls = decl[3]
 
     if wname:
-        namespace, classes, name = split_decl_name(name)
+        namespace, classes, name2 = split_decl_name(name)
         namespace = '.'.join(namespace)
-        namespaces[namespace].enums[name] = (name.replace(".", "::"),name)
+        wname = '_'.join(classes+[name2])
+        # print(wname)
+        namespaces[namespace].enums[wname] = (name.replace(".", "::"),wname)
+    
     for decl in const_decls:
         name = decl[0]
         add_const(name.replace("const ", "").strip(), decl)
@@ -601,7 +645,8 @@ def gen(srcfiles, output_path):
 
     cpp_code = StringIO()
     for name, ns in namespaces.items():
-        cpp_code.write("JLCXX_MODULE %s(jlcxx::Module &mod) {\n" % name.split('.')[-1])
+        cpp_code.write("JLCXX_MODULE %s_wrap(jlcxx::Module &mod) {\n" % name.split('.')[-1])
+        cpp_code.write("using namespace %s;\n" % name.replace(".", "::"))
         for cname, cl in ns.classes.items():
             cpp_code.write(cl.get_cpp_code())
             for mname, fs in cl.methods.items():
@@ -612,7 +657,7 @@ def gen(srcfiles, output_path):
                 cpp_code.write('\n    mod%s;' % f.get_complete_code("", False))
 
         for e1,e2 in ns.enums.items():
-            cpp_code.write('\n    mod.add_bits<{1}>("{0}", jlcxx::julia_type("CppEnum"));\n'.format(e2[0], e2[1]))
+            cpp_code.write('\n    mod.add_bits<{0}>("{1}", jlcxx::julia_type("CppEnum"));\n'.format(e2[0], e2[1]))
         for name, cname in sorted(ns.consts.items()):
             cpp_code.write('    mod.set_const("%s", %s);\n'%(name, cname))
             compat_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", name).upper()
@@ -620,8 +665,8 @@ def gen(srcfiles, output_path):
                 cpp_code.write('    mod.set_const("%s", %s);\n'%(compat_name, cname))
 
         cpp_code.write('}\n');
-
-    
+        break
+    print(ns_template)
     print(cpp_code.getvalue())
 
     # print(set(argumentst))

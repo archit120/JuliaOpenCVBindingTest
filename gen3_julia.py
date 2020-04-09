@@ -18,7 +18,24 @@ pass_by_val_types = ["Point*", "Point2f*", "Rect*", "String*", "double*", "float
 def normalize_class_name(name):
     return re.sub(r"^cv\.", "", name).replace(".", "_")
 
-argmap = {"int": "Int32", "float":"Float32", "double":"Float64", "bool":"Bool"}
+jl_cpp_argmap = {"int": "Int32", "float":"Float32", "double":"Float64", "bool":"Bool"}
+
+typemap = {"Size": 'NTuple{Int'}
+
+module_template = Template("""
+module ${modname}
+    using CxxWrap
+    @wrapmodule(joinpath("${libpath}","libcv2_jlcxx"), :${modname})
+
+    function __init__()
+        @initcxx
+    end
+
+    ${code}
+end
+""")
+
+
 
 def handle_def_arg(inp):
     if inp=="String()":
@@ -26,8 +43,8 @@ def handle_def_arg(inp):
     def handle_vector(match):
         return handle_jl_arg("%sCxxWrap.StdVector{%s}()" % (match.group(1), match.group(2)))
     inp = re.sub("std::vector<(.*)>", handle_vector, inp)
-    for k in argmap:
-        inp = inp.replace(k, argmap[k])
+    for k in jl_cpp_argmap:
+        inp = inp.replace(k, jl_cpp_argmap[k])
     return inp
 
 def handle_jl_arg(inp):
@@ -37,8 +54,8 @@ def handle_jl_arg(inp):
         return handle_jl_arg("%sPtr{%s}" % (match.group(1), match.group(2)))
     inp = re.sub("(.*)vector_(.*)", handle_vector, inp)
     inp = re.sub("(.*)Ptr_(.*)", handle_ptr, inp)
-    for k in argmap:
-        inp = inp.replace(k, argmap[k])
+    for k in jl_cpp_argmap:
+        inp = inp.replace(k, jl_cpp_argmap[k])
     return inp
 
   

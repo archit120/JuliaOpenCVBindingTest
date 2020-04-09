@@ -30,4 +30,4 @@ python3 gen3_{lang}.py
 
 The script will output declrations for functions and classes along with other information.
 
-The file ```autocode.cpp``` contains auto-generated C++ code by gen3_cpp.py with additional formatting. The file  ```autocode.jl``` contains auto-generated Julia side code for wrapping. The files do not compile right now but are close to the intended final result. 
+The file ```autocode.cpp``` contains auto-generated C++ code by gen3_cpp.py with additional formatting. The file  ```autocode.jl``` contains auto-generated Julia side code for wrapping. The C++ code compiles as intended and is very close to the final result. The julia code doesn't compile but has multiple proof-of-concepts integrated already.

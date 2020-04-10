@@ -20,7 +20,7 @@ pass_by_val_types = ["Point*", "Point2f*", "Rect*", "String*", "double*", "float
 
 gen_template_check_self = Template("""
     ${cname} * self1 = 0;
-    if (!jlopencv_${name}_getp(self, self1))
+    if (!pyopencv_${name}_getp(self, self1))
         return failmsgp("Incorrect type of self (must be '${name}' or its derivative)");
     ${pname} _self_ = ${cvt}(self1);
 """)
@@ -34,7 +34,7 @@ gen_template_simple_call_constructor_prelude = Template("""if(self) """)
 gen_template_simple_call_constructor = Template("""new (&(self->v)) ${cname}${args}""")
 
 gen_template_parse_args = Template("""const char* keywords[] = { $kw_list, NULL };
-    if( jlArg_ParseTupleAndKeywords(args, kw, "$fmtspec", (char**)keywords, $parse_arglist)$code_cvt )""")
+    if( PyArg_ParseTupleAndKeywords(args, kw, "$fmtspec", (char**)keywords, $parse_arglist)$code_cvt )""")
 
 gen_template_func_body = Template("""$code_decl
     $code_parse
@@ -47,7 +47,7 @@ gen_template_func_body = Template("""$code_decl
 gen_template_mappable = Template("""
     {
         ${mappable} _src;
-        if (jlopencv_to(src, _src, info))
+        if (pyopencv_to(src, _src, info))
         {
             return cv_mappable_to(_src, dst);
         }
@@ -58,18 +58,18 @@ gen_template_type_decl = Template("""
 // Converter (${name})
 
 template<>
-struct jlOpenCV_Converter< ${cname} >
+struct PyOpenCV_Converter< ${cname} >
 {
-    static jlObject* from(const ${cname}& r)
+    static PyObject* from(const ${cname}& r)
     {
-        return jlopencv_${name}_Instance(r);
+        return pyopencv_${name}_Instance(r);
     }
-    static bool to(jlObject* src, ${cname}& dst, const ArgInfo& info)
+    static bool to(PyObject* src, ${cname}& dst, const ArgInfo& info)
     {
-        if(!src || src == jl_None)
+        if(!src || src == Py_None)
             return true;
         ${cname} * dst_;
-        if (jlopencv_${name}_getp(src, dst_))
+        if (pyopencv_${name}_getp(src, dst_))
         {
             dst = *dst_;
             return true;
@@ -83,19 +83,19 @@ struct jlOpenCV_Converter< ${cname} >
 """)
 
 gen_template_map_type_cvt = Template("""
-template <> struct IsMirroredType<$cname> : std::true_type {
-};
+template<> bool pyopencv_to(PyObject* src, ${cname}& dst, const ArgInfo& info);
+
 """)
 
 """
     Template to add code for mapping fields in CV_EXPORTS_W_MAP classes
 """
 gen_template_set_prop_from_map = Template("""
-    if( jlMapping_HasKeyString(src, (char*)"$propname") )
+    if( PyMapping_HasKeyString(src, (char*)"$propname") )
     {
-        tmp = jlMapping_GetItemString(src, (char*)"$propname");
-        ok = tmp && jlopencv_to(tmp, dst.$propname, ArgInfo("$propname", false));
-        jl_DECREF(tmp);
+        tmp = PyMapping_GetItemString(src, (char*)"$propname");
+        ok = tmp && pyopencv_to(tmp, dst.$propname, ArgInfo("$propname", false));
+        Py_DECREF(tmp);
         if(!ok) return false;
     }""")
 
@@ -113,12 +113,12 @@ ${methods_code}
 
 // Tables (${name})
 
-static jlGetSetDef jlopencv_${name}_getseters[] =
+static PyGetSetDef pyopencv_${name}_getseters[] =
 {${getset_inits}
     {NULL}  /* Sentinel */
 };
 
-static jlMethodDef jlopencv_${name}_methods[] =
+static PyMethodDef pyopencv_${name}_methods[] =
 {
 ${methods_inits}
     {NULL,          NULL}
@@ -127,34 +127,41 @@ ${methods_inits}
 
 
 gen_template_get_prop = Template("""
-${rtype} jlopencv_${name}_get_${member}(${name} p)
+static PyObject* pyopencv_${name}_get_${member}(pyopencv_${name}_t* p, void *closure)
 {
-    return jlopencv_from(p${access}${member});
+    return pyopencv_from(p->v${access}${member});
 }
 """)
 
 
 gen_template_get_prop_algo = Template("""
+static PyObject* pyopencv_${name}_get_${member}(pyopencv_${name}_t* p, void *closure)
+{
+    $cname* _self_ = dynamic_cast<$cname*>(p->v.get());
+    if (!_self_)
+        return failmsgp("Incorrect type of object (must be '${name}' or its derivative)");
+    return pyopencv_from(_self_${access}${member});
+}
 """)
 
 gen_template_set_prop = Template("""
-static int jlopencv_${name}_set_${member}(jlopencv_${name}_t* p, jlObject *value, void *closure)
+static int pyopencv_${name}_set_${member}(pyopencv_${name}_t* p, PyObject *value, void *closure)
 {
     if (!value)
     {
-        jlErr_SetString(jlExc_TypeError, "Cannot delete the ${member} attribute");
+        PyErr_SetString(PyExc_TypeError, "Cannot delete the ${member} attribute");
         return -1;
     }
-    return jlopencv_to(value, p->v${access}${member}, ArgInfo("value", false)) ? 0 : -1;
+    return pyopencv_to(value, p->v${access}${member}, ArgInfo("value", false)) ? 0 : -1;
 }
 """)
 
 gen_template_set_prop_algo = Template("""
-static int jlopencv_${name}_set_${member}(jlopencv_${name}_t* p, jlObject *value, void *closure)
+static int pyopencv_${name}_set_${member}(pyopencv_${name}_t* p, PyObject *value, void *closure)
 {
     if (!value)
     {
-        jlErr_SetString(jlExc_TypeError, "Cannot delete the ${member} attribute");
+        PyErr_SetString(PyExc_TypeError, "Cannot delete the ${member} attribute");
         return -1;
     }
     $cname* _self_ = dynamic_cast<$cname*>(p->v.get());
@@ -163,16 +170,16 @@ static int jlopencv_${name}_set_${member}(jlopencv_${name}_t* p, jlObject *value
         failmsgp("Incorrect type of object (must be '${name}' or its derivative)");
         return -1;
     }
-    return jlopencv_to(value, _self_${access}${member}, ArgInfo("value", false)) ? 0 : -1;
+    return pyopencv_to(value, _self_${access}${member}, ArgInfo("value", false)) ? 0 : -1;
 }
 """)
 
 
 gen_template_prop_init = Template("""
-    {(char*)"${member}", (getter)jlopencv_${name}_get_${member}, NULL, (char*)"${member}", NULL},""")
+    {(char*)"${member}", (getter)pyopencv_${name}_get_${member}, NULL, (char*)"${member}", NULL},""")
 
 gen_template_rw_prop_init = Template("""
-    {(char*)"${member}", (getter)jlopencv_${name}_get_${member}, (setter)jlopencv_${name}_set_${member}, (char*)"${member}", NULL},""")
+    {(char*)"${member}", (getter)pyopencv_${name}_get_${member}, (setter)pyopencv_${name}_set_${member}, (char*)"${member}", NULL},""")
 
 class FormatStrings:
     string = 's'
@@ -222,7 +229,6 @@ class ClassProp(object):
     """
     def __init__(self, decl):
         self.tp = decl[0].replace("*", "_ptr")
-        self.ctp = decl[0]
         self.name = decl[1]
         self.readonly = True
         if "/RW" in decl[3]:
@@ -248,7 +254,7 @@ class ClassInfo(object):
             # print(decl)
             bases = decl[1].split()[1:]
             if len(bases) > 1:
-                print("Note: Class %s has more than 1 base class (not supported by jlthon C extensions)" % (self.name,))
+                print("Note: Class %s has more than 1 base class (not supported by Python C extensions)" % (self.name,))
                 print("      Bases: ", " ".join(bases))
                 print("      Only the first base class will be used")
                 #return sys.exit(-1)
@@ -280,10 +286,10 @@ class ClassInfo(object):
         Generate and return code for classes of map type. No methods in this class, only fields. 
         """
         all_classes = codegen.classes
-        code = "static bool jlopencv_to(jlObject* src, %s& dst, const ArgInfo& info)\n{\n    jlObject* tmp;\n    bool ok;\n" % (self.cname)
+        code = "static bool pyopencv_to(PyObject* src, %s& dst, const ArgInfo& info)\n{\n    PyObject* tmp;\n    bool ok;\n" % (self.cname)
         code += "".join([gen_template_set_prop_from_map.substitute(propname=p.name,proptype=p.tp) for p in self.props])
         if self.base:
-            code += "\n    return jlopencv_to(src, (%s&)dst, info);\n}\n" % all_classes[self.base].cname
+            code += "\n    return pyopencv_to(src, (%s&)dst, info);\n}\n" % all_classes[self.base].cname
         else:
             code += "\n    return true;\n}\n"
         return code
@@ -312,7 +318,7 @@ class ClassInfo(object):
             if self.isalgorithm:
                 getset_code.write(gen_template_get_prop_algo.substitute(name=self.name, cname=self.cname, member=pname, membertype=p.tp, access=access_op))
             else:
-                getset_code.write(gen_template_get_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op, rtype = p.ctp))
+                getset_code.write(gen_template_get_prop.substitute(name=self.name, member=pname, membertype=p.tp, access=access_op))
 
 
             #create setter and init functions
@@ -358,7 +364,7 @@ class ClassInfo(object):
         if self.constructor is not None:
             constructor_name = self.constructor.get_wrapper_name()
 
-        return "CVjl_TYPE({}, {}, {}, {}, {});\n".format(
+        return "CVPY_TYPE({}, {}, {}, {}, {});\n".format(
             self.name,
             self.cname if self.issimple else "Ptr<{}>".format(self.cname),
             self.sname if self.issimple else "Ptr",
@@ -372,8 +378,6 @@ def handle_ptr(tp):
         tp = 'Ptr<' + "::".join(tp.split('_')[1:]) + '>'
     return tp
 
-def handle_julia_type(tp):
-    return tp
 
 class ArgInfo(object):
     """
@@ -382,7 +386,6 @@ class ArgInfo(object):
 
     def __init__(self, arg_tuple):
         self.tp = handle_ptr(arg_tuple[0])
-        self.jtp = handle_julia_type(self.tp)
         self.name = arg_tuple[1]
         self.defval = arg_tuple[2]
         self.isarray = False
@@ -406,8 +409,8 @@ class ArgInfo(object):
             elif m.startswith("/CA"):
                 self.isarray = True
                 self.arraycvt = m[2:].strip()
-        self.jl_inputarg = False
-        self.jl_outputarg = False
+        self.py_inputarg = False
+        self.py_outputarg = False
 
     def isbig(self):
         return self.tp in ["Mat", "vector_Mat", "cuda::GpuMat", "GpuMat", "vector_GpuMat", "UMat", "vector_UMat"] # or self.tp.startswith("vector")
@@ -434,9 +437,6 @@ class FuncVariant(object):
             self.rettype = ""
         self.args = []
         self.array_counters = {}
-        # if name=="convert":
-        #     print(decl[3])
-        #     assert(0)
         for a in decl[3]:
             ainfo = ArgInfo(a)
             if ainfo.isarray and not ainfo.arraycvt:
@@ -447,19 +447,19 @@ class FuncVariant(object):
                 else:
                     self.array_counters[c] = [ainfo.name]
             self.args.append(ainfo)
-        self.init_jlproto()
+        self.init_pyproto()
 
-    def init_jlproto(self):
+    def init_pyproto(self):
         # string representation of argument list, with '[', ']' symbols denoting optional arguments, e.g.
         # "src1, src2[, dst[, mask]]" for cv.add
         argstr = ""
 
-        # list of all input arguments of the jlthon function, with the argument numbers:
+        # list of all input arguments of the Python function, with the argument numbers:
         #    [("src1", 0), ("src2", 1), ("dst", 2), ("mask", 3)]
         # we keep an argument number to find the respective argument quickly, because
-        # some of the arguments of C function may not present in the jlthon function (such as array counters)
+        # some of the arguments of C function may not present in the Python function (such as array counters)
         # or even go in a different order ("heavy" output parameters of the C function
-        # become the first optional input parameters of the jlthon function, and thus they are placed right after
+        # become the first optional input parameters of the Python function, and thus they are placed right after
         # non-optional input parameters)
         arglist = []
 
@@ -480,14 +480,14 @@ class FuncVariant(object):
             if a.tp in ignored_arg_types:
                 continue
             if a.returnarg:
-                outlist.append((a.name, argno, a.jtp))
+                outlist.append((a.name, argno))
             if (not a.inputarg) and a.isbig():
-                outarr_list.append((a.name, argno, a.jtp))
+                outarr_list.append((a.name, argno))
                 continue
             if not a.inputarg:
                 continue
             if not a.defval:
-                arglist.append((a.name, argno, a.jtp))
+                arglist.append((a.name, argno))
             else:
                 firstoptarg = min(firstoptarg, len(arglist))
                 # if there are some array output parameters before the first default parameter, they
@@ -495,7 +495,7 @@ class FuncVariant(object):
                 if outarr_list:
                     arglist += outarr_list
                     outarr_list = []
-                arglist.append((a.name, argno, a.jtp))
+                arglist.append((a.name, argno))
 
         if outarr_list:
             firstoptarg = min(firstoptarg, len(arglist))
@@ -503,15 +503,15 @@ class FuncVariant(object):
         firstoptarg = min(firstoptarg, len(arglist))
 
         noptargs = len(arglist) - firstoptarg
-        argnamelist = [aname+"::"+jtp for aname, argno, jtp in arglist]
+        argnamelist = [aname for aname, argno in arglist]
         argstr = ", ".join(argnamelist[:firstoptarg])
-        if noptargs != 0:
-            argstr = argstr + "; " +", ".join(argnamelist[firstoptarg:])
+        argstr = "[, ".join([argstr] + argnamelist[firstoptarg:])
+        argstr += "]" * noptargs
         if self.rettype:
-            outlist = [("retval", -1, "")] + outlist
+            outlist = [("retval", -1)] + outlist
         elif self.isconstructor:
             assert outlist == []
-            outlist = [("self", -1, "")]
+            outlist = [("self", -1)]
         if self.isconstructor:
             classname = self.classname
             if classname.startswith("Cv"):
@@ -522,18 +522,17 @@ class FuncVariant(object):
         else:
             outstr = "None"
 
-        self.jl_arg_str = argstr
-        self.jl_return_str = outstr
-        self.jl_prototype = "%s(%s) -> %s" % (self.wname, argstr, outstr)
-        self.jl_noptargs = noptargs
-        self.jl_arglist = arglist
-        for aname, argno, jtp in arglist:
-            self.args[argno].jl_inputarg = True
-        for aname, argno, jtp in outlist:
+        self.py_arg_str = argstr
+        self.py_return_str = outstr
+        self.py_prototype = "%s(%s) -> %s" % (self.wname, argstr, outstr)
+        self.py_noptargs = noptargs
+        self.py_arglist = arglist
+        for aname, argno in arglist:
+            self.args[argno].py_inputarg = True
+        for aname, argno in outlist:
             if argno >= 0:
-                self.args[argno].jl_outputarg = True
-        self.jl_outlist = outlist
-
+                self.args[argno].py_outputarg = True
+        self.py_outlist = outlist
 
 
 class FuncInfo(object):
@@ -564,7 +563,7 @@ class FuncInfo(object):
         if self.is_static:
             name += "_static"
 
-        return "jlopencv_" + self.namespace.replace('.','_') + '_' + classname + name
+        return "pyopencv_" + self.namespace.replace('.','_') + '_' + classname + name
 
     def get_wrapper_prototype(self, codegen):
         """
@@ -572,14 +571,14 @@ class FuncInfo(object):
         """
         full_fname = self.get_wrapper_name()
         if self.isconstructor:
-            return "static int {fn_name}(jlopencv_{type_name}_t* self, jlObject* args, jlObject* kw)".format(
+            return "static int {fn_name}(pyopencv_{type_name}_t* self, PyObject* args, PyObject* kw)".format(
                     fn_name=full_fname, type_name=codegen.classes[self.classname].name)
 
         if self.classname: #Method belongs to class
             self_arg = "self"
         else:   #Global method
             self_arg = ""
-        return "static jlObject* %s(jlObject* %s, jlObject* args, jlObject* kw)" % (full_fname, self_arg)
+        return "static PyObject* %s(PyObject* %s, PyObject* args, PyObject* kw)" % (full_fname, self_arg)
 
     def get_tab_entry(self):
         """
@@ -590,25 +589,23 @@ class FuncInfo(object):
 
         have_empty_constructor = False
         for v in self.variants:
-            s = v.jl_prototype
-            if (not v.jl_arglist) and self.isconstructor:
+            s = v.py_prototype
+            if (not v.py_arglist) and self.isconstructor:
                 have_empty_constructor = True
             if s not in prototype_list:
                 prototype_list.append(s)
                 docstring_list.append(v.docstring)
 
-        print(prototype_list)
-# No we don't
-        # # if there are just 2 constructors: default one and some other,
-        # # we simplify the notation.
-        # # Instead of ClassName(args ...) -> object or ClassName() -> object
-        # # we write ClassName([args ...]) -> object
-        # if have_empty_constructor and len(self.variants) == 2:
-        #     idx = self.variants[1].jl_arglist != []
-        #     s = self.variants[idx].jl_prototype
-        #     p1 = s.find("(")
-        #     p2 = s.rfind(")")
-        #     prototype_list = [s[:p1+1] + "[" + s[p1+1:p2] + "]" + s[p2:]]
+        # if there are just 2 constructors: default one and some other,
+        # we simplify the notation.
+        # Instead of ClassName(args ...) -> object or ClassName() -> object
+        # we write ClassName([args ...]) -> object
+        if have_empty_constructor and len(self.variants) == 2:
+            idx = self.variants[1].py_arglist != []
+            s = self.variants[idx].py_prototype
+            p1 = s.find("(")
+            p2 = s.rfind(")")
+            prototype_list = [s[:p1+1] + "[" + s[p1+1:p2] + "]" + s[p2:]]
 
         # The final docstring will be: Each prototype, followed by
         # their relevant doxygen comment
@@ -627,9 +624,9 @@ class FuncInfo(object):
         # Convert unicode chars to xml representation, but keep as string instead of bytes
         full_docstring = full_docstring.encode('ascii', errors='xmlcharrefreplace').decode()
 
-        return Template('    {"$jl_funcname", CV_jl_FN_WITH_KW_($wrap_funcname, $flags), "$jl_docstring"},\n'
-                        ).substitute(jl_funcname = self.variants[0].wname, wrap_funcname=self.get_wrapper_name(),
-                                     flags = 'METH_STATIC' if self.is_static else '0', jl_docstring = full_docstring)
+        return Template('    {"$py_funcname", CV_PY_FN_WITH_KW_($wrap_funcname, $flags), "$py_docstring"},\n'
+                        ).substitute(py_funcname = self.variants[0].wname, wrap_funcname=self.get_wrapper_name(),
+                                     flags = 'METH_STATIC' if self.is_static else '0', py_docstring = full_docstring)
 
     def gen_code(self, codegen):
         """
@@ -642,7 +639,7 @@ class FuncInfo(object):
 
         selfinfo = None
         ismethod = self.classname != "" and not self.isconstructor
-        # full name is needed for error diagnostic in jlArg_ParseTupleAndKeywords
+        # full name is needed for error diagnostic in PyArg_ParseTupleAndKeywords
         fullname = self.name
 
         if self.classname:
@@ -671,7 +668,7 @@ class FuncInfo(object):
                 code_args += "_self_"
 
             # declare all the C function arguments,
-            # add necessary conversions from jlthon objects to code_cvt_list,
+            # add necessary conversions from Python objects to code_cvt_list,
             # form the function/method call,
             # for the list of type mappings
             for a in v.args:
@@ -700,14 +697,14 @@ class FuncInfo(object):
 
                 arg_type_info = simple_argtype_mapping.get(tp, ArgTypeInfo(tp, FormatStrings.object, defval0, True))
                 parse_name = a.name
-                if a.jl_inputarg:
+                if a.py_inputarg:
                     if arg_type_info.strict_conversion:
-                        code_decl += "    jlObject* jlobj_%s = NULL;\n" % (a.name,)
-                        parse_name = "jlobj_" + a.name
+                        code_decl += "    PyObject* pyobj_%s = NULL;\n" % (a.name,)
+                        parse_name = "pyobj_" + a.name
                         if a.tp == 'char':
-                            code_cvt_list.append("convert_to_char(jlobj_%s, &%s, %s)" % (a.name, a.name, a.crepr()))
+                            code_cvt_list.append("convert_to_char(pyobj_%s, &%s, %s)" % (a.name, a.name, a.crepr()))
                         else:
-                            code_cvt_list.append("jlopencv_to(jlobj_%s, %s, %s)" % (a.name, a.name, a.crepr()))
+                            code_cvt_list.append("pyopencv_to(pyobj_%s, %s, %s)" % (a.name, a.name, a.crepr()))
 
                 all_cargs.append([arg_type_info, parse_name])
 
@@ -765,8 +762,8 @@ class FuncInfo(object):
                 code_cvt_list = [""] + code_cvt_list
 
             # add info about return value, if any, to all_cargs. if there non-void return value,
-            # it is encoded in v.jl_outlist as ("retval", -1) pair.
-            # As [-1] in jlthon accesses the last element of a list, we automatically handle the return value by
+            # it is encoded in v.py_outlist as ("retval", -1) pair.
+            # As [-1] in Python accesses the last element of a list, we automatically handle the return value by
             # adding the necessary info to the end of all_cargs list.
             if v.rettype:
                 tp = v.rettype
@@ -775,41 +772,41 @@ class FuncInfo(object):
                 arg_type_info = simple_argtype_mapping.get(tp, default_info)
                 all_cargs.append(arg_type_info)
 
-            if v.args and v.jl_arglist:
-                # form the format spec for jlArg_ParseTupleAndKeywords
+            if v.args and v.py_arglist:
+                # form the format spec for PyArg_ParseTupleAndKeywords
                 fmtspec = "".join([
                     get_type_format_string(all_cargs[argno][0])
-                    for aname, argno, jtp in v.jl_arglist
+                    for aname, argno in v.py_arglist
                 ])
-                if v.jl_noptargs > 0:
-                    fmtspec = fmtspec[:-v.jl_noptargs] + "|" + fmtspec[-v.jl_noptargs:]
+                if v.py_noptargs > 0:
+                    fmtspec = fmtspec[:-v.py_noptargs] + "|" + fmtspec[-v.py_noptargs:]
                 fmtspec += ":" + fullname
 
                 # form the argument parse code that:
                 #   - declares the list of keyword parameters
-                #   - calls jlArg_ParseTupleAndKeywords
-                #   - converts complex arguments from jlObject's to native OpenCV types
+                #   - calls PyArg_ParseTupleAndKeywords
+                #   - converts complex arguments from PyObject's to native OpenCV types
                 code_parse = gen_template_parse_args.substitute(
-                    kw_list = ", ".join(['"' + aname + '"' for aname, argno, jtp in v.jl_arglist]),
+                    kw_list = ", ".join(['"' + aname + '"' for aname, argno in v.py_arglist]),
                     fmtspec = fmtspec,
-                    parse_arglist = ", ".join(["&" + all_cargs[argno][1] for aname, argno, jtp in v.jl_arglist]),
+                    parse_arglist = ", ".join(["&" + all_cargs[argno][1] for aname, argno in v.py_arglist]),
                     code_cvt = " &&\n        ".join(code_cvt_list))
             else:
-                code_parse = "if(jlObject_Size(args) == 0 && (!kw || jlObject_Size(kw) == 0))"
+                code_parse = "if(PyObject_Size(args) == 0 && (!kw || PyObject_Size(kw) == 0))"
 
-            if len(v.jl_outlist) == 0:
-                code_ret = "jl_RETURN_NONE"
-            elif len(v.jl_outlist) == 1:
+            if len(v.py_outlist) == 0:
+                code_ret = "Py_RETURN_NONE"
+            elif len(v.py_outlist) == 1:
                 if self.isconstructor:
                     code_ret = "return 0"
                 else:
-                    aname, argno, jtp = v.jl_outlist[0]
-                    code_ret = "return jlopencv_from(%s)" % (aname,)
+                    aname, argno = v.py_outlist[0]
+                    code_ret = "return pyopencv_from(%s)" % (aname,)
             else:
                 # there is more than 1 return parameter; form the tuple out of them
-                fmtspec = "N"*len(v.jl_outlist)
-                code_ret = "return jl_BuildValue(\"(%s)\", %s)" % \
-                    (fmtspec, ", ".join(["jlopencv_from(" + aname + ")" for aname, argno, jtp in v.jl_outlist]))
+                fmtspec = "N"*len(v.py_outlist)
+                code_ret = "return Py_BuildValue(\"(%s)\", %s)" % \
+                    (fmtspec, ", ".join(["pyopencv_from(" + aname + ")" for aname, argno in v.py_outlist]))
 
             all_code_variants.append(gen_template_func_body.substitute(code_decl=code_decl,
                 code_parse=code_parse, code_prelude=code_prelude, code_fcall=code_fcall, code_ret=code_ret))
@@ -819,7 +816,7 @@ class FuncInfo(object):
             code += all_code_variants[0]
         else:
             # try to execute each signature
-            code += "    jlErr_Clear();\n\n".join(["    {\n" + v + "    }\n" for v in all_code_variants])
+            code += "    PyErr_Clear();\n\n".join(["    {\n" + v + "    }\n" for v in all_code_variants])
 
         def_ret = "NULL"
         if self.isconstructor:
@@ -835,23 +832,23 @@ class FuncInfo(object):
             classinfo = all_classes[self.classname]
             #if dump: pprint(vars(classinfo))
             if self.isconstructor:
-                jl_name = 'cv.' + classinfo.wname
+                py_name = 'cv.' + classinfo.wname
             elif self.is_static:
-                jl_name = '.'.join([self.namespace, classinfo.sname + '_' + self.variants[0].wname])
+                py_name = '.'.join([self.namespace, classinfo.sname + '_' + self.variants[0].wname])
             else:
                 cname = classinfo.cname + '::' + cname
-                jl_name = 'cv.' + classinfo.wname + '.' + self.variants[0].wname
+                py_name = 'cv.' + classinfo.wname + '.' + self.variants[0].wname
         else:
-            jl_name = '.'.join([self.namespace, self.variants[0].wname])
-        #if dump: print(cname + " => " + jl_name)
-        jl_signatures = codegen.jl_signatures.setdefault(cname, [])
+            py_name = '.'.join([self.namespace, self.variants[0].wname])
+        #if dump: print(cname + " => " + py_name)
+        py_signatures = codegen.py_signatures.setdefault(cname, [])
         for v in self.variants:
-            s = dict(name=jl_name, arg=v.jl_arg_str, ret=v.jl_return_str)
-            for old in jl_signatures:
+            s = dict(name=py_name, arg=v.py_arg_str, ret=v.py_return_str)
+            for old in py_signatures:
                 if s == old:
                     break
             else:
-                jl_signatures.append(s)
+                py_signatures.append(s)
 
         return code
 
@@ -862,7 +859,7 @@ class Namespace(object):
         self.consts = {}
 
 
-class jlthonWrapperGenerator(object):
+class PythonWrapperGenerator(object):
     def __init__(self):
         self.clear()
 
@@ -878,7 +875,7 @@ class jlthonWrapperGenerator(object):
         self.code_ns_reg = StringIO()
         self.code_ns_init = StringIO()
         self.code_type_publish = StringIO()
-        self.jl_signatures = dict()
+        self.py_signatures = dict()
         self.class_idx = 0  #Total number of classes
 
     def add_class(self, stype, name, decl):
@@ -900,10 +897,10 @@ class jlthonWrapperGenerator(object):
         namespace = '.'.join(namespace)
         name = '_'.join(classes+[name])
 
-        jl_name = 'cv.' + classinfo.wname  # use wrapper name
-        jl_signatures = self.jl_signatures.setdefault(classinfo.cname, [])
-        jl_signatures.append(dict(name=jl_name))
-        #print('class: ' + classinfo.cname + " => " + jl_name)
+        py_name = 'cv.' + classinfo.wname  # use wrapper name
+        py_signatures = self.py_signatures.setdefault(classinfo.cname, [])
+        py_signatures.append(dict(name=py_name))
+        #print('class: ' + classinfo.cname + " => " + py_name)
 
     def split_decl_name(self, name):
         chunks = name.split('.')
@@ -927,10 +924,10 @@ class jlthonWrapperGenerator(object):
         ns.consts[name] = cname
 
         value = decl[1]
-        jl_name = '.'.join([namespace, name])
-        jl_signatures = self.jl_signatures.setdefault(cname, [])
-        jl_signatures.append(dict(name=jl_name, value=value))
-        #print(cname + ' => ' + str(jl_name) + ' (value=' + value + ')')
+        py_name = '.'.join([namespace, name])
+        py_signatures = self.py_signatures.setdefault(cname, [])
+        py_signatures.append(dict(name=py_name, value=value))
+        #print(cname + ' => ' + str(py_name) + ' (value=' + value + ')')
 
     def add_enum(self, name, decl):
         wname = normalize_class_name(name)
@@ -1010,22 +1007,21 @@ class jlthonWrapperGenerator(object):
         """
         ns = self.namespaces[ns_name]
         wname = normalize_class_name(ns_name)
-        self.code_ns_reg.write('JLCXX_MODULE %s(jlcxx::Module &mod) {\n'%wname)
 
-        for name, cname in sorted(ns.consts.items()):
-            self.code_ns_reg.write('    mod.set_const("%s", %s);\n'%(name, cname))
-            compat_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", name).upper()
-            if name != compat_name:
-                self.code_ns_reg.write('    mod.set_const("%s", %s);\n'%(compat_name, cname))
-
+        self.code_ns_reg.write('static PyMethodDef methods_%s[] = {\n'%wname)
         for name, func in sorted(ns.funcs.items()):
             if func.isconstructor:
                 continue
-                print()
-            self.code_ns_reg.write('    mod.method("%s", %s);\n'%(func.get_wrapper_name(), name))
+            self.code_ns_reg.write(func.get_tab_entry())
+        self.code_ns_reg.write('    {NULL, NULL}\n};\n\n')
 
-        
-        self.code_ns_reg.write('    }\n\n')
+        self.code_ns_reg.write('static ConstDef consts_%s[] = {\n'%wname)
+        for name, cname in sorted(ns.consts.items()):
+            self.code_ns_reg.write('    {"%s", static_cast<long>(%s)},\n'%(name, cname))
+            compat_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", name).upper()
+            if name != compat_name:
+                self.code_ns_reg.write('    {"%s", static_cast<long>(%s)},\n'%(compat_name, cname))
+        self.code_ns_reg.write('    {NULL, 0}\n};\n\n')
 
     def gen_enum_reg(self, enum_name):
         name_seg = enum_name.split(".")
@@ -1040,8 +1036,7 @@ class jlthonWrapperGenerator(object):
         code = ""
         if re.sub(r"^cv\.", "", enum_name) != wname:
             code += "typedef {0} {1};\n".format(cname, wname)
-
-        code += 'types.add_bits<{1}>("{0}", jlcxx::julia_type("CppEnum"));;\n\n'.format(wname, cname)
+        code += "CV_PY_FROM_ENUM({0});\nCV_PY_TO_ENUM({0});\n\n".format(wname)
         self.code_enums.write(code)
 
     def save(self, path, name, buf):
@@ -1059,11 +1054,10 @@ class jlthonWrapperGenerator(object):
     def gen(self, srcfiles, output_path):
         self.clear()
         self.parser = hdr_parser.CppHeaderParser(generate_umat_decls=True, generate_gpumat_decls=True)
-        count = 0
+
         # step 1: scan the headers and build more descriptive maps of classes, consts, functions
         for hdr in srcfiles:
             decls = self.parser.parse(hdr)
-            count += len(decls)
             if len(decls) == 0:
                 continue
             if hdr.find('opencv2/') >= 0: #Avoid including the shadow files
@@ -1085,6 +1079,7 @@ class jlthonWrapperGenerator(object):
                 else:
                     # function
                     self.add_func(decl)
+
         # step 1.5 check if all base classes exist
         for name, classinfo in self.classes.items():
             if classinfo.base:
@@ -1141,7 +1136,7 @@ class jlthonWrapperGenerator(object):
                 self.code_types.write(code)
 
         # register classes in the same order as they have been declared.
-        # this way, base classes will be registered in jlthon before their derivatives.
+        # this way, base classes will be registered in Python before their derivatives.
         classlist1 = [(classinfo.decl_idx, name, classinfo) for name, classinfo in classlist]
         classlist1.sort()
 
@@ -1161,7 +1156,7 @@ class jlthonWrapperGenerator(object):
                 code = func.gen_code(self)
                 self.code_funcs.write(code)
             self.gen_namespace(ns_name)
-            self.code_ns_init.write('CVjl_MODULE("{}", {});\n'.format(ns_name[2:], normalize_class_name(ns_name)))
+            self.code_ns_init.write('CVPY_MODULE("{}", {});\n'.format(ns_name[2:], normalize_class_name(ns_name)))
 
         # step 4: generate the code for enum types
         enumlist = list(self.enums.values())
@@ -1170,29 +1165,28 @@ class jlthonWrapperGenerator(object):
             self.gen_enum_reg(name)
 
         # step 5: generate the code for constants
-        # But empty actually and function doens't even exist
         constlist = list(self.consts.items())
         constlist.sort()
         for name, constinfo in constlist:
             self.gen_const_reg(constinfo)
 
         # That's it. Now save all the files
-        self.save(output_path, "jlopencv_generated_include.h", self.code_include)
-        self.save(output_path, "jlopencv_generated_funcs.h", self.code_funcs)
-        self.save(output_path, "jlopencv_generated_enums.h", self.code_enums)
-        self.save(output_path, "jlopencv_generated_types.h", self.code_type_publish)
-        self.save(output_path, "jlopencv_generated_types_content.h", self.code_types)
-        self.save(output_path, "jlopencv_generated_modules.h", self.code_ns_init)
-        self.save(output_path, "jlopencv_generated_modules_content.h", self.code_ns_reg)
-        self.save_json(output_path, "jlopencv_signatures.json", self.jl_signatures)
+        self.save(output_path, "pyopencv_generated_include.h", self.code_include)
+        self.save(output_path, "pyopencv_generated_funcs.h", self.code_funcs)
+        self.save(output_path, "pyopencv_generated_enums.h", self.code_enums)
+        self.save(output_path, "pyopencv_generated_types.h", self.code_type_publish)
+        self.save(output_path, "pyopencv_generated_types_content.h", self.code_types)
+        self.save(output_path, "pyopencv_generated_modules.h", self.code_ns_init)
+        self.save(output_path, "pyopencv_generated_modules_content.h", self.code_ns_reg)
+        self.save_json(output_path, "pyopencv_signatures.json", self.py_signatures)
 
 if __name__ == "__main__":
     srcfiles = hdr_parser.opencv_hdr_list
-    dstdir = "test/"
+    dstdir = "/home/archit/GSoC Work/opencv_test"
     if len(sys.argv) > 1:
         dstdir = sys.argv[1]
     if len(sys.argv) > 2:
         with open(sys.argv[2], 'r') as f:
             srcfiles = [l.strip() for l in f.readlines()]
-    generator = jlthonWrapperGenerator()
+    generator = PythonWrapperGenerator()
     generator.gen(srcfiles, dstdir)

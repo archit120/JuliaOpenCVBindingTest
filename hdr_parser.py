@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 from __future__ import print_function
 import os, sys, re, string, io
@@ -20,6 +20,7 @@ opencv_hdr_list = [
 "../../imgcodecs/include/opencv2/imgcodecs.hpp",
 "../../videoio/include/opencv2/videoio.hpp",
 "../../highgui/include/opencv2/highgui.hpp",
+# "autogen_manual_header.h"
 ]
 
 """

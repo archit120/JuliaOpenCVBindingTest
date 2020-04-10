@@ -10,10 +10,11 @@ get_filename_component(JlCxx_location ${JlCxx_location} DIRECTORY)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;${JlCxx_location}")
 
 message(STATUS "Found JlCxx at ${JlCxx_location}")
-
-add_library(cv2_jl SHARED cv2.cpp)
+add_library(cv2_jl SHARED auto_cv2.cpp)
 
 FIND_PACKAGE( OpenCV REQUIRED )
+message(STATUS "${OpenCV_VERSION}")
+
 target_link_libraries(cv2_jl JlCxx::cxxwrap_julia)
 target_link_libraries(cv2_jl JlCxx::cxxwrap_julia_stl)
 INCLUDE_DIRECTORIES( ${OpenCV_INCLUDE_DIRS} )

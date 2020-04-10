@@ -25,7 +25,7 @@ typemap = {"Size": 'NTuple{Int'}
 module_template = Template("""
 module ${modname}
     using CxxWrap
-    @wrapmodule(joinpath("${libpath}","libcv2_jlcxx"), :${modname})
+    @wrapmodule(joinpath("${libpath}","libcv2_jlcxx"), :${modname}_wrap)
 
     function __init__()
         @initcxx

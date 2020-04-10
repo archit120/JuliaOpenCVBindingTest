@@ -57,6 +57,8 @@ for decl in decls:
             print(decl[1])
         for var in decl[3]:
             print_arg_enum(var)
+    else:
+        print(decl)
     print("")
 # decl = decls[0]
 

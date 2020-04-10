@@ -38,6 +38,9 @@ struct ConstructorPointerType<cv::Ptr<T>>
 {
     typedef T *type;
 };
+
+template<typename NumberT> struct IsMirroredType<Point_<NumberT>> : std::true_type {};
+
 } // namespace jlcxx
 
 jlcxx::ArrayRef<uint8_t, 3> Mat_mutable_data(cv::Mat Mat)
@@ -301,6 +304,7 @@ JLCXX_MODULE
 cv2(jlcxx::Module &mod)
 {
     mod.add_type<Mat>("Mat").constructor<int, const int *, int, void *, const size_t *>();
+    mod.map_type<Parametric<TypeVar<1>>>("Point").apply<Point_<int>, Point_<float>, Point_<double>>([](auto wrapped){});
     mod.add_type<Point2f>("Point2f").constructor<float, float>().method("Point2f_get_x", [](const Point2f &a) { return a.x; }).method("Point2f_get_y", [](const Point2f &a) { return a.y; });
 
     mod.add_type<Size2i>("Size2i").constructor<int, int>().method("Size2i_get_height", [](const Size2i &a) { return a.height; }).method("Size2i_get_width", [](const Size2i &a) { return a.width; });

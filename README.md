@@ -22,7 +22,12 @@ The path for ```CMAKE_PREFIX_PATH``` will be the path of the build directory for
 cmake -DCMAKE_PREFIX_PATH=/path/to/libcxxwrap-julia-prefix .
 cmake --build .
 ```
+### Automated Generation 
 
+Also look at https://github.com/archit120/JuliaOpenCVBindingGenerator 
+That repo contains a lot of material on automated generation of bindings. Follow the README for more information
+
+#### Previously
 The branch automated-generation contains some WIP progress on automated generation of the wrappers. Run after modifying ```hdr_parser.py``` with appropriate header file directories.
 ```
 python3 gen3_{lang}.py

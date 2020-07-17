@@ -46,9 +46,9 @@ jlcxx::ArrayRef<uint8_t, 3> Mat_mutable_data(cv::Mat Mat)
 JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
 {
     mod.add_type<Mat>("Mat").constructor<int, const int*, int, void *, const size_t*>();
-    
+
     mod.add_type<Point2f>("Point2f").constructor<float, float>().method("Point2f_get_x", [](const Point2f &a) { return a.x; }).method("Point2f_get_y", [](const Point2f &a) { return a.y; });
-    
+
     mod.add_type<Size2i>("Size2i").constructor<int, int>().method("Size2i_get_height", [](const Size2i &a) {return a.height;}).method("Size2i_get_width",[](const Size2i &a){return a.width;});
     mod.add_type<Rect2i>("Rect2i").constructor<int, int, int, int>()
                                         .method("Rect2i_get_height", [](const Rect2i &a) {return a.height;})
@@ -76,6 +76,7 @@ JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
     mod.method("equalizeHist", [](Mat a1) {Mat o1; cv::equalizeHist(a1, o1); return o1; });
     mod.method("destroyAllWindows", []() { cv::destroyAllWindows(); });
 
+
     mod.method("Mat_mutable_data", &Mat_mutable_data);
     mod.method("Mat_mutable_data_2", [](Mat m){
         return make_tuple(m.data, m.type(), m.channels(), m.size[1], m.size[0], m.step[1], m.step[0]);
@@ -84,5 +85,25 @@ JLCXX_MODULE define_julia_module(jlcxx::Module &mod)
     // Algorithm Inherits
     mod.method("simpleBlobDetector_detect", [](cv::Ptr<SimpleBlobDetector> c1, Mat a1) { vector<KeyPoint> o1; c1->detect(a1, o1); return o1; });
     mod.method("simpleBlobDetector_create", []() { return cv::Ptr<SimpleBlobDetector>(SimpleBlobDetector::create()); });
+
+
+    //callback work
+    mod.method("createButton", [](const string & bar_name, jl_function_t* on_change, int type, bool initial_button_state) {createButton(bar_name, [](int s, void* c) {
+        JuliaFunction f((jl_function_t*)c);
+        f(forward<int>(s));
+    }, (void*)on_change, type, initial_button_state);});
+
+    mod.method("setMouseCallback", [](const string & winname, jl_function_t* onMouse) {
+        setMouseCallback(winname, [](int event, int x, int y, int flags, void* c) {
+        JuliaFunction f((jl_function_t*)c);
+        f(forward<int>(event), forward<int>(x), forward<int>(y), forward<int>(flags));
+    }, (void*)onMouse);});
+
+    mod.method("createTrackbar", [](const String &trackbarname, const String &winname, int& value, int count, jl_function_t* onChange) {
+        createTrackbar(trackbarname, winname, &value, count, [](int s, void* c) {
+        JuliaFunction f((jl_function_t*)c);
+        f(forward<int>(s));
+    }, (void*)onChange);});
+
 
 }

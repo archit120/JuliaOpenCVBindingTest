@@ -16,7 +16,7 @@ module cv2
     import Main.jl_cpp_cv2
     import Main.OpenCVImages
 
-
+    using CxxWrap
     const CV_CN_MAX = 512
     const CV_CN_SHIFT = 3
     const CV_DEPTH_MAX = (1 << CV_CN_SHIFT)
@@ -34,7 +34,7 @@ module cv2
 
     CV_MAKETYPE(depth,cn) = (CV_MAT_DEPTH(depth) + (((cn)-1) << CV_CN_SHIFT))
     CV_MAKE_TYPE = CV_MAKETYPE
- 
+
 
     struct KeyPoint
         pt::Tuple{Float32,Float32}
@@ -118,7 +118,7 @@ module cv2
 
             print("Bad Type")
             print(steps)
-            
+
         else
             print("Bad steps")
             print(steps)
@@ -149,8 +149,8 @@ module cv2
     end
 
     function cpp_KeyPoint_to_jl_KeyPoint(kp)
-        kpr = KeyPoint(cpp_Point2f_to_jl_tuple(jl_cpp_cv2.KeyPoint_get_pt(kp)), jl_cpp_cv2.KeyPoint_get_size(kp), 
-                        jl_cpp_cv2.KeyPoint_get_angle(kp), jl_cpp_cv2.KeyPoint_get_response(kp), 
+        kpr = KeyPoint(cpp_Point2f_to_jl_tuple(jl_cpp_cv2.KeyPoint_get_pt(kp)), jl_cpp_cv2.KeyPoint_get_size(kp),
+                        jl_cpp_cv2.KeyPoint_get_angle(kp), jl_cpp_cv2.KeyPoint_get_response(kp),
                         jl_cpp_cv2.KeyPoint_get_octave(kp), jl_cpp_cv2.KeyPoint_get_class_id(kp))
         return kpr
     end
@@ -178,6 +178,7 @@ module cv2
     function namedWindow(winname::String, flags::Integer)
         jl_cpp_cv2.namedWindow(winname, flags)
     end
+
     function simpleBlobDetector_create()
         return jl_cpp_cv2.simpleBlobDetector_create()
     end
@@ -224,7 +225,7 @@ module cv2
 
     function CascadeClassifier_detectMultiScale(inp1, image::Image;
                                              scaleFactor::Float64 = 1.1,
-                                             minNeighbors::Integer = 3, 
+                                             minNeighbors::Integer = 3,
                                              flags::Integer = 0,
                                              minSize::Size = (0,0),
                                              maxSize::Size = (0,0))
@@ -244,5 +245,27 @@ module cv2
         jl_cpp_cv2.destroyAllWindows()
     end
 
+    function createButton(bar_name::String, on_change, userdata, type::Int32 = 0, initial_button_state::Bool = false)
+        func =  (x)->on_change(x, userdata)
+        CxxWrap.gcprotect(userdata)
+        CxxWrap.gcprotect(func)
+        CxxWrap.gcprotect(on_change)
+        return jl_cpp_cv2.createButton(bar_name,func, type, initial_button_state)
+    end
 
+    function setMouseCallback(winname::String, onMouse, userdata)
+        func =  (event, x, y, flags)->onMouse(event, x, y, flags, userdata)
+        CxxWrap.gcprotect(userdata)
+        CxxWrap.gcprotect(func)
+        CxxWrap.gcprotect(onMouse)
+        return jl_cpp_cv2.setMouseCallback(winname,func)
+    end
+
+    function createTrackbar(trackbarname::String, winname::String, value::Ref{Int32}, count::Int32, onChange, userdata)
+        func =  (x)->onChange(x, userdata)
+        CxxWrap.gcprotect(userdata)
+        CxxWrap.gcprotect(func)
+        CxxWrap.gcprotect(onChange)
+        return jl_cpp_cv2.createTrackbar(trackbarname, winname, value, count, func)
+    end
 end
